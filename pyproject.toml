@@ -1,0 +1,24 @@
+[project]
+name = "teletools"
+version = "0.1.0"
+description = "Python Utility Functions Library for Call Details Records ( CDRs ) from Brazilian Telecommunications Carriers"
+readme = "README.md"
+authors = [
+    { name = "Maxwel de Souza Freitas", email = "maxwel@maxwelfreitas.com.br" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "pandas>=2.3.2",
+]
+
+[project.scripts]
+teletools = "teletools:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.3.0",
+]
