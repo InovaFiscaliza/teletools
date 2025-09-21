@@ -20,14 +20,14 @@ def encrypt(
             help="Path to the input file or folder to be encrypted. If a folder is provided, all files within it will be encrypted (non-recursively)."
         ),
     ],
-    output_file_or_folder: Annotated[
+    output_folder: Annotated[
         str,
         typer.Argument(
-            help="Path to the output file or folder where encrypted content will be saved. If not specified encrypted files will be saved in the same location as the input."
+            help="Path to the output folder where encrypted content will be saved. If not specified encrypted files will be saved in the same location as the input."
         ),
     ] = None,
 ):
-    FileCipher.encrypt(public_key_file, input_file_or_folder, output_file_or_folder)
+    FileCipher.encrypt(public_key_file, input_file_or_folder, output_folder)
 
 
 @app.command()
@@ -44,14 +44,14 @@ def decrypt(
             help="Path to the input file or folder to be decrypted. If a folder is provided, all files within it will be decrypted (non-recursively)."
         ),
     ],
-    output_file_or_folder: Annotated[
+    output_folder: Annotated[
         str,
         typer.Argument(
-            help="Path to the output file or folder where decrypted content will be saved. If not specified decrypted files will be saved in the same location as the input."
+            help="Path to the output folder where decrypted content will be saved. If not specified decrypted files will be saved in the same location as the input."
         ),
     ] = None,
 ):
-    FileCipher.decrypt(private_key_file, input_file_or_folder, output_file_or_folder)
+    FileCipher.decrypt(private_key_file, input_file_or_folder, output_folder)
 
 
 if __name__ == "__main__":
