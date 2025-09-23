@@ -1,7 +1,8 @@
 from typing import Annotated
 
 import typer
-from cipher import FileCipher
+
+from teletools.cipher import decrypt_file_or_folder, encrypt_file_or_folder
 
 app = typer.Typer()
 
@@ -27,7 +28,7 @@ def encrypt(
         ),
     ] = None,
 ):
-    FileCipher.encrypt(public_key_file, input_file_or_folder, output_folder)
+    encrypt_file_or_folder(public_key_file, input_file_or_folder, output_folder)
 
 
 @app.command()
@@ -51,7 +52,7 @@ def decrypt(
         ),
     ] = None,
 ):
-    FileCipher.decrypt(private_key_file, input_file_or_folder, output_folder)
+    decrypt_file_or_folder(private_key_file, input_file_or_folder, output_folder)
 
 
 if __name__ == "__main__":
