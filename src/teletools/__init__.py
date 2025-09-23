@@ -1,7 +1,8 @@
-from teletools import cipher, preprocessing
+from teletools import cipher, database, preprocessing
 
 __all__ = [
     "cipher",
+    "database",
     "preprocessing",
 ]
 

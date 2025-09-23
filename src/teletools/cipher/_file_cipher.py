@@ -1,7 +1,40 @@
+"""
+File Encryption and Decryption Module.
+
+This module provides functionality for encrypting and decrypting files and folders
+using GPG (GNU Privacy Guard) with public/private key cryptography. It supports
+both individual file operations and batch processing of entire directories.
+
+The module uses the python-gnupg library to interface with GPG and provides
+high-level functions for common encryption/decryption workflows.
+
+Functions:
+    encrypt_file_or_folder: Main function to encrypt a file or all files in a folder.
+    decrypt_file_or_folder: Main function to decrypt a file or all .gpg files in a folder.
+
+Private Functions:
+    _encrypt_file: Encrypts a single file using a public key.
+    _encrypt_folder: Encrypts all files in a folder using a public key.
+    _decrypt_file: Decrypts a single .gpg file using a private key.
+    _decrypt_folder: Decrypts all .gpg files in a folder using a private key.
+    _create_output_folder: Helper function to create and validate output directories.
+
+Constants:
+    GPG_FILE_PATTERN: File pattern used to identify encrypted GPG files.
+
+Example:
+    >>> # Encrypt a file
+    >>> encrypt_file_or_folder('public.key', 'document.txt', 'encrypted/')
+    >>>
+    >>> # Decrypt a folder
+    >>> decrypt_file_or_folder('private.key', 'encrypted/', 'decrypted/')
+"""
+
 from pathlib import Path
 
 import gnupg
 
+#: File pattern used to identify GPG encrypted files
 GPG_FILE_PATTERN = "*.gpg"
 
 
