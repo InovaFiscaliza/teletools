@@ -15,18 +15,14 @@ Constants:
 """
 
 from datetime import date, datetime
-from pathlib import Path
+from os.path import exists
 from typing import Iterable
 
 import duckdb
+import numpy as np
 
+from ._database_config import DUCKDB_MEMORY_LIMIT, DUCKDB_THREADS
 from ._sql_queries import CREATE_TEMP_TABLE, INSERT_DATA_INTO_TEMP_TABLE, QUERY_NUMBERS
-
-#: Number of threads to use for DuckDB operations
-DUCKDB_THREADS = 12
-
-#: Memory limit for DuckDB operations
-DUCKDB_MEMORY_LIMIT = "16GB"
 
 
 class QueryABRDataBase:
@@ -39,7 +35,7 @@ class QueryABRDataBase:
     performance settings.
 
     Attributes:
-        database (Path): Path to the DuckDB database file containing ABR Telecom data.
+        database (str): Path to the DuckDB database file containing ABR Telecom data.
 
     Examples:
         >>> db = QueryABRDataBase("path/to/abr_database.db")
@@ -54,8 +50,8 @@ class QueryABRDataBase:
     """
 
     def __init__(self, database):
-        self.database = Path(database)
-        if self.database.exists():
+        if exists(database):
+            self.database = database
             self._database_setup()
         else:
             raise FileNotFoundError(
@@ -117,10 +113,10 @@ class QueryABRDataBase:
             )
 
         # Convert to Numpy Array for validation (optional, uncomment if needed)
-        # try:
-        #     numbers_to_query = np.array(subscribers_numbers, dtype=np.int64)
-        # except Exception as e:
-        #     raise TypeError(f"Error converting to Numpy Array: {e}")
+        try:
+            numbers_to_query = np.array(subscribers_numbers, dtype=np.int64)
+        except Exception as e:
+            raise TypeError(f"Error converting to Numpy Array: {e}")
 
         if reference_date is None:
             # Get today's date
@@ -141,7 +137,7 @@ class QueryABRDataBase:
 
         Args:
             reference_date (int | str): Date to validate. Can be an integer or string
-                                      representing a date in YYYYMMDD format.
+                                        representing a date in YYYYMMDD format.
 
         Returns:
             int: The validated date as an integer in YYYYMMDD format.
@@ -149,8 +145,8 @@ class QueryABRDataBase:
         Raises:
             TypeError: If reference_date is not an int or str.
             ValueError: If the date string contains non-digit characters,
-                       if the date is not exactly 8 digits long,
-                       or if the date is not a valid date in YYYYMMDD format.
+                        if the date is not exactly 8 digits long,
+                        or if the date is not a valid date in YYYYMMDD format.
 
         Examples:
             >>> validate_date(20231225)

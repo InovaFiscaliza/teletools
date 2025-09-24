@@ -207,13 +207,13 @@ def normalize_number(subscriber_number, national_destination_code=""):
         ('invalid', False)
 
     """
-    original_subscriber_number = str(subscriber_number)
-    if ";" in original_subscriber_number:
-        original_subscriber_number = original_subscriber_number.split(";")[0]
+    subscriber_number = str(subscriber_number)
+    if ";" in subscriber_number:
+        subscriber_number = subscriber_number.split(";")[0]
     # remover filler
-    original_subscriber_number = original_subscriber_number.replace("f", "")
+    subscriber_number = subscriber_number.replace("f", "")
 
-    normalized_subscriber_number = _clean_numbers(original_subscriber_number)
+    normalized_subscriber_number = _clean_numbers(subscriber_number)
     # remove collect call indicator or the international/national prefix
     normalized_subscriber_number = PREFFIX.sub("", normalized_subscriber_number)
 
