@@ -62,7 +62,7 @@ E164_FULL_NUMBERS = re.compile(
             (?:4[1-9][2345][0-9]{7})$|
             (?:5[1345][2345][0-9]{7})$|
             (?:6[1-9][2345][0-9]{7})$|
-            (?:7[13457][2345][0-9]{7})$|
+            (?:7[134579][2345][0-9]{7})$|
             (?:8[1-9][2345][0-9]{7})$|
             (?:9[1-9][2345][0-9]{7})$|
             # CNG
@@ -86,47 +86,48 @@ E164_FULL_NUMBERS = re.compile(
 #: Covers local numbers without area codes including mobile (SMP), fixed-line (STFC),
 #: specialized mobile (SME), and public utility services (SUP) patterns.
 SMALL_NUMBERS = re.compile(
-    r"""(
+    r"""# (BRAZIL COUNTRY CODE) (CN) (optional)
+        (?:55)?(?:1[1-9]|2[12478]|3[1-578]|4[1-9]|5[1345]|6[1-9]|7[134579]|8[1-9]|9[1-9])?(
             # PREFIXO+MCDU
             # SMP
-            (?:^9[0-9]{8})$|
+            (?:9[0-9]{8})$|
             # STFC
-            (?:^[2345][0-9]{7})$|
+            (?:[2345][0-9]{7})$|
             # SME
-            (?:^7[0789][0-9]{6})$|
+            (?:7[0789][0-9]{6})$|
             # SUP
-            (?:^10[024])$|
-            (?:^1031[234579])$|
-            (?:^1032[13-9])$|
-            (?:^1033[124-9])$|
-            (?:^1034[123578])$|
-            (?:^1035[1-468])$|
-            (?:^1036[139])$|
-            (?:^1038[149])$|
-            (?:^1039[168])$|
-            (?:^105[012356789])$|
-            (?:^106[012467])$|
-            (?:^1061[0-35-8])$|
-            (?:^1062[0145])$|
-            (?:^1063[0137])$|
-            (?:^1064[4789])$|
-            (?:^1065[01235])$|
-            (?:^1066[016])$|
-            (?:^1067[137])$|
-            (?:^1068[5-8])$|
-            (?:^1069[1359])$|
-            (?:^11[125-8])$|
-            (?:^12[135789])$|
-            (?:^13[024568])$|
-            (?:^133[12])$|
-            (?:^1358)$|
-            (?:^14[25678])$|
-            (?:^15[0-9])$|
-            (?:^16[0-8])$|
-            (?:^18[0158])$|
-            (?:^1746)$|
-            (?:^19[0-9])$|
-            (?:^911)$
+            (?:10[024])$|
+            (?:1031[234579])$|
+            (?:1032[13-9])$|
+            (?:1033[124-9])$|
+            (?:1034[123578])$|
+            (?:1035[1-468])$|
+            (?:1036[139])$|
+            (?:1038[149])$|
+            (?:1039[168])$|
+            (?:105[012356789])$|
+            (?:106[012467])$|
+            (?:1061[0-35-8])$|
+            (?:1062[0145])$|
+            (?:1063[0137])$|
+            (?:1064[4789])$|
+            (?:1065[01235])$|
+            (?:1066[016])$|
+            (?:1067[137])$|
+            (?:1068[5-8])$|
+            (?:1069[1359])$|
+            (?:11[125-8])$|
+            (?:12[135789])$|
+            (?:13[024568])$|
+            (?:133[12])$|
+            (?:1358)$|
+            (?:14[25678])$|
+            (?:15[0-9])$|
+            (?:16[0-8])$|
+            (?:18[0158])$|
+            (?:1746)$|
+            (?:19[0-9])$|
+            (?:911)$
         )""",
     re.VERBOSE,
 )
@@ -213,18 +214,16 @@ def normalize_number(subscriber_number, national_destination_code=""):
     # remover filler
     subscriber_number = subscriber_number.replace("f", "")
 
-    normalized_subscriber_number = _clean_numbers(subscriber_number)
+    clean_subscriber_number = _clean_numbers(subscriber_number)
     # remove collect call indicator or the international/national prefix
-    normalized_subscriber_number = PREFFIX.sub("", normalized_subscriber_number)
+    clean_subscriber_number = PREFFIX.sub("", clean_subscriber_number)
 
-    if len(normalized_subscriber_number) >= 10:
+    if len(clean_subscriber_number) >= 10:
         normalized_subscriber_number = E164_FULL_NUMBERS.findall(
-            normalized_subscriber_number
+            clean_subscriber_number
         )
     else:
-        normalized_subscriber_number = SMALL_NUMBERS.findall(
-            normalized_subscriber_number
-        )
+        normalized_subscriber_number = SMALL_NUMBERS.findall(clean_subscriber_number)
 
     if len(normalized_subscriber_number) == 1:
         normalized_subscriber_number = normalized_subscriber_number[0]
