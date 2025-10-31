@@ -105,6 +105,47 @@ CREATE EXTENSION tablefunc;
 CREATE EXTENSION unaccent;
 ```
 
+### Configuração do banco de dado CDR
+
+#### Criação dos grupos e usuários
+
+Criar grupo de usuários
+```sql
+CREATE ROLE cdr_database_users WITH
+	NOLOGIN
+	NOSUPERUSER
+	NOCREATEDB
+	NOCREATEROLE
+	INHERIT
+	NOREPLICATION
+	NOBYPASSRLS
+	CONNECTION LIMIT -1;
+COMMENT ON ROLE cdr_database_users IS 'Grupo de usuários do banco de dados CDR';
+```
+Criar usuários
+```sql
+CREATE ROLE <user_name> WITH
+	LOGIN
+	NOSUPERUSER
+	NOCREATEDB
+	NOCREATEROLE
+	INHERIT
+	NOREPLICATION
+	NOBYPASSRLS
+	CONNECTION LIMIT -1
+	PASSWORD '<user_password>';
+
+GRANT cdr_database_users TO <user_name>;
+COMMENT ON ROLE <user_name> IS '<user_full_name>';
+```
+
+### Criação dos esquemas do banco de dados CDR
+
+Executar o [script](sql/create_schemas.sql)
+
+
+### Criação e configuração dos usuários
+
 ---
 
 ## 👤 Autores
