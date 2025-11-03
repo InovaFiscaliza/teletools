@@ -104,6 +104,42 @@ CREATE EXTENSION system_stats;
 CREATE EXTENSION tablefunc;
 CREATE EXTENSION unaccent;
 ```
+### Configuração dos parâmetros de performance
+
+Editar o arquivo de configuração do PostgreSQL
+```bash
+sudo su - postgres
+cd /data/postresql/data
+cp postgresql.conf postgresql.conf.bkp
+nano postgresql.conf
+
+# descomentar as linhas, se necessário e ajustar os parâmetros
+# MEMÓRIA
+shared_buffers = 16GB
+work_mem = 384MB
+maintenance_work_mem = 2GB
+effective_cache_size = 48GB
+ 
+# PARALELISMO
+max_parallel_workers = 40
+max_parallel_workers_per_gather = 10
+parallel_setup_cost = 100.0
+parallel_tuple_cost = 0.01
+ 
+# I/O
+random_page_cost = 1.1
+effective_io_concurrency = 200
+checkpoint_timeout = 15min
+ 
+# PLANNER
+default_statistics_target = 1000
+geqo_threshold = 16
+ 
+# OUTROS
+jit = off
+huge_pages = try
+max_connections = 100
+```
 
 ### Configuração do banco de dado CDR
 
@@ -142,9 +178,6 @@ COMMENT ON ROLE <user_name> IS '<user_full_name>';
 ### Criação dos esquemas do banco de dados CDR
 
 Executar o [script](sql/create_schemas.sql)
-
-
-### Criação e configuração dos usuários
 
 ---
 
