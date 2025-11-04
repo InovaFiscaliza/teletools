@@ -54,6 +54,5 @@ def decrypt(
 ):
     decrypt_file_or_folder(private_key_file, input_file_or_folder, output_folder)
 
-
 if __name__ == "__main__":
     app()
