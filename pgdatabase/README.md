@@ -160,19 +160,23 @@ COMMENT ON ROLE cdr_database_users IS 'Grupo de usuários do banco de dados CDR'
 ```
 Criar usuários
 ```sql
-CREATE ROLE <user_name> WITH
-	LOGIN
-	NOSUPERUSER
-	NOCREATEDB
-	NOCREATEROLE
-	INHERIT
-	NOREPLICATION
-	NOBYPASSRLS
-	CONNECTION LIMIT -1
-	PASSWORD '<user_password>';
-
-GRANT cdr_database_users TO <user_name>;
-COMMENT ON ROLE <user_name> IS '<user_full_name>';
+-- Script para criar usuários
+DO $$
+DECLARE
+    user_name TEXT := '<user_name>';
+    user_password TEXT := '<user_password>';
+    user_full_name TEXT := '<user_full_name>';
+BEGIN
+    -- Criar a role
+    EXECUTE format('CREATE ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOREPLICATION NOBYPASSRLS CONNECTION LIMIT -1 PASSWORD %L', 
+                   user_name, user_password);
+    
+    -- Conceder privilégios
+    EXECUTE format('GRANT cdr_database_users TO %I', user_name);
+    
+    -- Adicionar comentário
+    EXECUTE format('COMMENT ON ROLE %I IS %L', user_name, user_full_name);
+END $$;
 ```
 
 ### Criação dos esquemas do banco de dados CDR
