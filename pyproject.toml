@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-teletools = "teletools:main"
+cipher_cli = "teletools.cipher.cipher_cli:app"
 
 [build-system]
 requires = ["hatchling"]
