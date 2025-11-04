@@ -4,7 +4,8 @@ DECLARE
     schema_record RECORD;
     schemas_list TEXT[][] := ARRAY[
         ['entrada', 'Esquema para armazenamento dos dados de entrada.'],
-        ['mapas', 'Esquema para armazenamento de mapas.']
+        ['mapas', 'Esquema para armazenamento de mapas.'],
+        ['public', 'Esquema público padrão do PostgreSQL.']
         -- Adicione mais esquemas aqui conforme necessário
     ];
 BEGIN
