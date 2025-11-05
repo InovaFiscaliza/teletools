@@ -225,8 +225,7 @@ BEGIN
             EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA %I TO cdr_database_users', schema_name);
             EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %I TO cdr_database_users', schema_name);
             EXECUTE format('GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA %I TO cdr_database_users', schema_name);
-            EXECUTE format('GRANT ALL PRIVILEGES ON ALL TYPES IN SCHEMA %I TO cdr_database_users', schema_name);
-            
+
             -- Alterar permissões padrão para objetos futuros no esquema
             EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA %I GRANT ALL ON TABLES TO cdr_database_users', schema_name);
             EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA %I GRANT ALL ON SEQUENCES TO cdr_database_users', schema_name);
