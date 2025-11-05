@@ -53,7 +53,7 @@ sudo chown -R pgadmin /data/postgresql/pgadmin
 sudo chmod -R g+s /data/postgresql/data
 sudo chmod -R g+s /data/postgresql/pgadmin
 ```
-Criar o arquivo de variáveis de ambiente (`.env`)
+Crie o arquivo de variáveis de ambiente (`.env`)
 ```
 POSTGRES_USER=<postgres_admin_username>
 POSTGRES_PASSWORD=<postgres_admin_username>
@@ -78,20 +78,29 @@ docker compose up -d
 ```
 ### Acesso ao PostgreSQL
 
-Após a configuração o banco de dados PostgreSQL pode ser acessado através do pgAdmin web ou desktop.
+Após a configuração o banco de dados PostgreSQL pode ser acessado através do pgAdmin (web ou desktop) ou de outra ferramenta para gerenciamento de banco de dados.
 
-![pgAdmin Web](../images/pgadmin_web.png "pgAdmin Web")
+Para acessar através do pgAdmin web acesse o endereço http://<host_de_instalação>:5050 e utilize o e-mail e senha do pgAdmin informados no arquivo de configuração (`PGADMIN_DEFAULT_EMAIL` e `PGADMIN_DEFAULT_PASSWORD`)
 
-Para acessar através do pgAdmin web acesse o endereço http://<host_de_instação>:5050 e utilize o e-mail e senha do pgAdmin informados no arquivo de configuração (`PGADMIN_DEFAULT_EMAIL` e `PGADMIN_DEFAULT_PASSWORD`) e configure o acesso ao servidor PostgreSQL informando hostname `postgres` e usuário e senha do PostgreSQL informados no arquivo de configuração (`POSTGRES_USER` e `POSTGRES_PASSWORD`).
+Configure a conexão ao servidor PostgreSQL com os seguintes parâmetros:
 
-![pgAdmin Desktop](../images/pgadmin_desktop.png "pgAdmin Desktop")
+| Parâmetro            | Valor                |
+| -------------------- | ---------------------|
+| Host name/address    | <host_de_instalação> |
+| Port                 | 5432                 |
+| Maintenance database | `POSTGRES_DB`        |
+| Username             | `POSTGRES_USER`      |
+| Password             | `POSTGRES_PASSWORD`  |
 
-Para acessar através do pgAdmin desktop configure o acesso ao servidor PostgreSQL informando hostname <host_de_instação> e usuário e senha do PostgreSQL informados no arquivo de configuração (`POSTGRES_USER` e `POSTGRES_PASSWORD`).
+
+![pgAdmin Register - Server](../images/postgre_connect.png "pgAdmin Register - Server")
+
 
 ### Instalação das extensões
 
-Conectar com o banco de dados e executar o SQL
+Conecte no banco de dados e execute o SQL
 ```sql
+-- Instalar extensões
 CREATE EXTENSION amcheck;
 CREATE EXTENSION btree_gin;
 CREATE EXTENSION file_fdw;
@@ -106,14 +115,14 @@ CREATE EXTENSION unaccent;
 ```
 ### Configuração dos parâmetros de performance
 
-Editar o arquivo de configuração do PostgreSQL
+Edite o arquivo de configuração do PostgreSQL
 ```bash
 sudo su - postgres
 cd /data/postresql/data
 cp postgresql.conf postgresql.conf.bkp
 nano postgresql.conf
 
-# descomentar as linhas, se necessário e ajustar os parâmetros
+# Descomentar as linhas, se necessário e ajustar os parâmetros
 # MEMÓRIA
 shared_buffers = 16GB
 work_mem = 384MB
@@ -145,8 +154,9 @@ max_connections = 100
 
 #### Criação dos grupos e usuários
 
-Criar grupo de usuários
+Crie o grupo de usuários
 ```sql
+-- Criar grupo de usuários
 CREATE ROLE cdr_database_users WITH
 	NOLOGIN
 	NOSUPERUSER
@@ -158,9 +168,9 @@ CREATE ROLE cdr_database_users WITH
 	CONNECTION LIMIT -1;
 COMMENT ON ROLE cdr_database_users IS 'Grupo de usuários do banco de dados CDR';
 ```
-Criar usuários
+Crie os usuários
 ```sql
--- Script para criar usuários
+-- Criar usuários
 DO $$
 DECLARE
     user_name TEXT := '<user_name>';
@@ -181,9 +191,9 @@ END $$;
 
 ### Criação dos esquemas do banco de dados CDR
 
-Ajustar permissões do banco de dados
+Ajuste as permissões do banco de dados
 ```sql
--- Define a lista de esquemas e seus comentários
+-- Definir a lista de esquemas e seus comentários
 DO $$
 DECLARE
     schema_record RECORD;
@@ -194,30 +204,30 @@ DECLARE
         -- Adicione mais esquemas aqui conforme necessário
     ];
 BEGIN
-    -- Itera sobre cada esquema na lista
+    -- Iterar sobre cada esquema na lista
     FOR i IN 1..array_length(schemas_list, 1) LOOP
         DECLARE
             schema_name TEXT := schemas_list[i][1];
             schema_comment TEXT := schemas_list[i][2];
         BEGIN
-            -- Cria o esquema
+            -- Criar o esquema
             EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I AUTHORIZATION pg_database_owner', schema_name);
             RAISE NOTICE 'Esquema % criado', schema_name;
             
-            -- Adiciona comentário ao esquema
+            -- Adicionar comentário ao esquema
             EXECUTE format('COMMENT ON SCHEMA %I IS %L', schema_name, schema_comment);
             
-            -- Concede permissões ao esquema
+            -- Conceder permissões ao esquema
             EXECUTE format('GRANT USAGE ON SCHEMA %I TO PUBLIC', schema_name);
             EXECUTE format('GRANT ALL ON SCHEMA %I TO cdr_database_users', schema_name);
 
-            -- Concede permissões para objetos no esquema
+            -- Conceder permissões para objetos no esquema
             EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA %I TO cdr_database_users', schema_name);
             EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %I TO cdr_database_users', schema_name);
             EXECUTE format('GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA %I TO cdr_database_users', schema_name);
             EXECUTE format('GRANT ALL PRIVILEGES ON ALL TYPES IN SCHEMA %I TO cdr_database_users', schema_name);
             
-            -- Altera permissões padrão para objetos futuros no esquema
+            -- Alterar permissões padrão para objetos futuros no esquema
             EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA %I GRANT ALL ON TABLES TO cdr_database_users', schema_name);
             EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA %I GRANT ALL ON SEQUENCES TO cdr_database_users', schema_name);
             EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA %I GRANT EXECUTE ON FUNCTIONS TO cdr_database_users', schema_name);
@@ -226,20 +236,23 @@ BEGIN
             RAISE NOTICE 'Permissões configuradas para o esquema %', schema_name;
         END;
     END LOOP;
-END $$;```
+END $$;
+```
 
-Opcionalmente, executar o [script](sql/create_schemas.sql)
+Opcionalmente, baixe, altere e execute o [script](sql/create_schemas.sql).
 
 ---
 
 ## 👤 Autores
 
 **Ronaldo S.A. Batista**
-- Email: eu@ronaldo.tech
+- Email: <eu@ronaldo.tech>
 
 **Maxwel de Souza Freitas**
 - Email: maxwel@maxwelfreitas.com.br
 
+**Carlos Cesar Lanzoni**
+- Email: carlos.cesar@anatel.gov.br
 ---
 
 **Versão:** 0.1.0
