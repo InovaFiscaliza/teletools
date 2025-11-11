@@ -115,40 +115,46 @@ CREATE EXTENSION unaccent;
 ```
 ### Configuração dos parâmetros de performance
 
-Edite o arquivo de configuração do PostgreSQL
+Edite o arquivo de configuração do PostgreSQL 
 ```bash
 sudo su - postgres
 cd /data/postresql/data
-cp postgresql.conf postgresql.conf.bkp
+cp postgresql.conf postgresql.conf.bkp.$(date +%Y%m%d_%H%M%S)
 nano postgresql.conf
-
-# Descomentar as linhas, se necessário e ajustar os parâmetros
-# MEMÓRIA
-shared_buffers = 16GB
-work_mem = 384MB
-maintenance_work_mem = 2GB
-effective_cache_size = 48GB
- 
-# PARALELISMO
-max_parallel_workers = 40
-max_parallel_workers_per_gather = 10
-parallel_setup_cost = 100.0
-parallel_tuple_cost = 0.01
- 
-# I/O
-random_page_cost = 1.1
-effective_io_concurrency = 200
-checkpoint_timeout = 15min
- 
-# PLANNER
-default_statistics_target = 1000
-geqo_threshold = 16
- 
-# OUTROS
-jit = off
-huge_pages = try
-max_connections = 100
 ```
+Verifique os parâmetros listados e os ajuste, se necessário.
+
+|Parâmetro                      |Descrição                                                                                         |Valor padrão|Valor ajustado|
+|-------------------------------|--------------------------------------------------------------------------------------------------|------------|--------------|
+|autovacuum                     |Starts the autovacuum subprocess.                                                                 |on          |on            |
+|autovacuum_vacuum_cost_limit   |Vacuum cost amount available before napping, for                                                  |-1          |2000          |
+|autovacuum_max_workers         |Sets the maximum number of simultaneously running autovacuum worker processes.                    |3           |6             |
+|autovacuum_vacuum_scale_factor |Number of tuple updates or deletes prior to vacuum as a fraction of reltuples.                    |0.2         |0.2           |
+|checkpoint_timeout             |Sets the maximum time between automatic WAL checkpoints.                                          |300         |1800s         |
+|deadlock_timeout               |Sets the time to wait on a lock before checking for deadlock.                                     |1000        |2s            |
+|default_statistics_target      |Sets the default statistics target.                                                               |100         |1000          |
+|effective_cache_size           |Sets the planner's assumption about the total size of the data caches.                            |524288      |6GB           |
+|effective_io_concurrency       |Number of simultaneous requests that can be handled efficiently by the disk subsystem.            |16          |200           |
+|geqo_threshold                 |Sets the threshold of FROM items beyond which GEQO is used.                                       |12          |16            |
+|huge_pages                     |Use of huge pages on Linux or Windows.                                                            |try         |try           |
+|jit                            |Allow JIT compilation.                                                                            |on          |off           |
+|listen_addresses               |Sets the host name or IP address(es) to listen to.                                                |*           |*             |
+|log_min_duration_statement     |Sets the minimum execution time above which all statements will be logged.                        |-1          |10000         |
+|maintenance_work_mem           |Sets the maximum memory to be used for maintenance operations.                                    |65536       |4GB           |
+|max_connections                |Sets the maximum number of concurrent connections.                                                |100         |100           |
+|max_locks_per_transaction      |Sets the maximum number of locks per transaction.                                                 |64          |256           |
+|max_parallel_workers           |Sets the maximum number of parallel workers that can be active at one time.                       |8           |16            |
+|max_parallel_workers_per_gather|Sets the maximum number of parallel processes per executor node.                                  |2           |8             |
+|max_wal_size                   |Sets the WAL size that triggers a checkpoint.                                                     |1024        |64GB          |
+|min_wal_size                   |Sets the minimum size to shrink the WAL to.                                                       |80          |2GB           |
+|parallel_setup_cost            |Sets the planner's estimate of the cost of starting up worker processes for parallel query.       |1000        |200.0         |
+|parallel_tuple_cost            |Sets the planner's estimate of the cost of passing each tuple (row) from worker to leader backend.|0.1         |0.1           |
+|random_page_cost               |Sets the planner's estimate of the cost of a nonsequentially fetched disk page.                   |4           |1.1           |
+|shared_buffers                 |Sets the number of shared memory buffers used by the server.                                      |2097152     |20GB          |
+|synchronous_commit             |Sets the current transaction's synchronization level.                                             |on          |local         |
+|temp_buffers                   |Sets the maximum number of temporary buffers used by each session.                                |1024        |4096          |
+|wal_level                      |Sets the level of information written to the WAL.                                                 |replica     |minimal       |
+|work_mem                       |Sets the maximum memory to be used for query workspaces.                                          |4096        |2GB           |
 
 ### Configuração do banco de dado CDR
 
@@ -239,6 +245,7 @@ END $$;
 ```
 
 Opcionalmente, baixe, altere e execute o [script](sql/create_schemas.sql).
+
 
 ---
 
