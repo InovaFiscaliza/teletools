@@ -107,6 +107,7 @@ CREATE EXTENSION file_fdw;
 CREATE EXTENSION fuzzystrmatch;
 CREATE EXTENSION ogr_fdw;
 CREATE EXTENSION pg_stat_statements;
+CREATE EXTENSION pgstattuple;
 CREATE EXTENSION postgis;
 CREATE EXTENSION postgis_raster;
 CREATE EXTENSION system_stats;
