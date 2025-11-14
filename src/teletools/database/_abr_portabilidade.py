@@ -22,7 +22,6 @@ Typical usage:
     results = load_pip_reports('/path/to/directory/')
 """
 
-import logging
 import time
 from collections.abc import Iterator
 from io import StringIO
@@ -31,45 +30,10 @@ from pathlib import Path
 import pandas as pd
 from _database_config import get_db_connection
 
-
-# Advanced logging configuration for console and file output
-def _setup_logger():
-    """Configure logger for console display and file logging.
-
-    Returns:
-        logging.Logger: Configured logger instance
-    """
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-
-    # Remove existing handlers to avoid duplication
-    if logger.handlers:
-        logger.handlers.clear()
-
-    # Message format
-    formatter = logging.Formatter(
-        "%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-    )
-
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-
-    # File handler
-    file_handler = logging.FileHandler("abr_portabilidade.log", encoding="utf-8")
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(formatter)
-
-    # Add handlers to logger
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
-
-    return logger
-
+from teletools.utils import setup_logger
 
 # Configure logger
-logger = _setup_logger()
+logger = setup_logger()
 
 # Performance settings
 CHUNK_SIZE = 100000  # Process in chunks of 100k rows
@@ -455,7 +419,7 @@ def load_pip_reports(
     input_path: str,
     table_name: str = IMPORT_TABLE,
     schema: str = IMPORT_SCHEMA,
-    truncate_table: bool = False
+    truncate_table: bool = False,
 ) -> dict:
     """
     Imports portability data from a file or folder.
@@ -507,4 +471,9 @@ def load_pip_reports(
         logger.error(f"Invalid path: {input_path}")
         return {}
 
-    return _import_multiple_files(files_to_import, table_name=table_name, schema=schema, truncate_table=truncate_table)
+    return _import_multiple_files(
+        files_to_import,
+        table_name=table_name,
+        schema=schema,
+        truncate_table=truncate_table,
+    )
