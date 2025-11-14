@@ -1,3 +1,27 @@
+"""ABR Portability Data Import Module.
+
+This module provides functionality to import Brazilian phone number portability data
+from ABR Telecom PIP system reports. It handles CSV files with portability information
+and imports them into a PostgreSQL database with optimized performance using chunked
+processing and bulk insert operations.
+
+The module supports:
+- Single file or multiple file processing
+- Memory-efficient chunked reading
+- Bulk database insertions using COPY FROM
+- Comprehensive logging and progress tracking
+- Data validation and type optimization
+
+Typical usage:
+    from _abr_portabilidade import load_pip_reports
+    
+    # Import single file
+    results = load_pip_reports('/path/to/file.csv.gz')
+    
+    # Import all files from directory
+    results = load_pip_reports('/path/to/directory/')
+"""
+
 import logging
 import time
 from collections.abc import Iterator
@@ -8,61 +32,68 @@ import pandas as pd
 from _database_config import get_db_connection
 
 
-# Configuração avançada de logging para console e arquivo
-def setup_logger():
-    """Configura logger para exibir no console e gravar em arquivo."""
+# Advanced logging configuration for console and file output
+def _setup_logger():
+    """Configure logger for console display and file logging.
+    
+    Returns:
+        logging.Logger: Configured logger instance
+    """
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
     
-    # Remove handlers existentes para evitar duplicação
+    # Remove existing handlers to avoid duplication
     if logger.handlers:
         logger.handlers.clear()
     
-    # Formato das mensagens
+    # Message format
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        '%(asctime)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     
-    # Handler para console
+    # Console handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
     
-    # Handler para arquivo
+    # File handler
     file_handler = logging.FileHandler('abr_portabilidade.log', encoding='utf-8')
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     
-    # Adicionar handlers ao logger
+    # Add handlers to logger
     logger.addHandler(console_handler)
     logger.addHandler(file_handler)
     
     return logger
 
-# Configurar logger
-logger = setup_logger()
+# Configure logger
+logger = _setup_logger()
 
-# Configurações de performance
-CHUNK_SIZE = 100000  # Processar em chunks de 100k linhas
+# Performance settings
+CHUNK_SIZE = 100000  # Process in chunks of 100k rows
 
-# Nomes das tabelas e esquemas
+# Table and schema names
 IMPORT_SCHEMA = "entrada"
 IMPORT_TABLE = "abr_portabilidade"
 
 
-def read_file_in_chunks(
+def _read_file_in_chunks(
     file: Path, chunk_size: int = CHUNK_SIZE
 ) -> Iterator[pd.DataFrame]:
     """
-    Lê arquivo CSV em chunks para otimizar uso de memória.
+    Read CSV file in chunks to optimize memory usage.
 
     Args:
-        file: Caminho para o arquivo
-        chunk_size: Tamanho do chunk
+        file: Path to the file
+        chunk_size: Size of each chunk
 
     Yields:
-        DataFrame: Chunk dos dados
+        pd.DataFrame: Data chunk with filename column added
+        
+    Raises:
+        Exception: If file reading fails
     """
     names = [
         "tipo_registro",
@@ -92,7 +123,7 @@ def read_file_in_chunks(
     }
 
     try:
-        # Usar chunksize para leitura otimizada
+        # Use chunksize for optimized reading
         chunk_reader = pd.read_csv(
             file,
             sep=";",
@@ -107,33 +138,33 @@ def read_file_in_chunks(
 
         for chunk in chunk_reader:
             chunk["nome_arquivo"] = file.name
-            yield process_chunk(chunk)
+            yield _process_chunk(chunk)
 
     except Exception as e:
-        logger.error(f"Erro ao ler arquivo {file}: {e}")
+        logger.error(f"Error reading file {file}: {e}")
         raise
 
 
-def process_chunk(df: pd.DataFrame) -> pd.DataFrame:
+def _process_chunk(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Processa um chunk de dados aplicando transformações otimizadas.
+    Process a data chunk by applying optimized transformations.
 
     Args:
-        df: DataFrame chunk
+        df: DataFrame chunk to process
 
     Returns:
-        DataFrame processado
+        pd.DataFrame: Processed DataFrame with optimized data types
     """
 
-    # Mapeamento otimizado usando categorical
+    # Optimized mapping using categorical
     map_ind_portar_origem = {"Sim": 1, "Nao": 0}
 
-    # Aplicar mapeamento de forma eficiente
+    # Apply mapping efficiently
     df["ind_portar_origem"] = (
         df["ind_portar_origem"].map(map_ind_portar_origem).astype("int8")
     )
 
-    # Otimizar tipos de dados
+    # Optimize data types
     df["cod_receptora"] = pd.to_numeric(df["cod_receptora"], errors="coerce").astype(
         "Int32"
     )
@@ -142,22 +173,25 @@ def process_chunk(df: pd.DataFrame) -> pd.DataFrame:
     )
     df["cod_status"] = pd.to_numeric(df["cod_status"], errors="coerce").astype("Int16")
 
-    # Remover linhas com dados críticos ausentes
+    # Remove rows with missing critical data
     df = df.dropna(subset=["numero_bp", "tn_inicial"])
 
     return df
 
 
-def create_table_if_not_exists(
+def _create_table_if_not_exists(
     conn, table_name: str = IMPORT_TABLE, schema: str = IMPORT_SCHEMA
 ) -> None:
     """
-    Cria tabela otimizada se não existir.
+    Create optimized table if it doesn't exist.
 
     Args:
-        conn: Conexão com banco
-        table_name: Nome da tabela
-        schema: Schema da tabela
+        conn: Database connection
+        table_name: Name of the table
+        schema: Table schema
+        
+    Raises:
+        Exception: If table creation fails
     """
     create_table_sql = f"""
     CREATE TABLE IF NOT EXISTS {schema}.{table_name} (
@@ -176,7 +210,7 @@ def create_table_if_not_exists(
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     
-    -- Criar índices para performance
+    -- Create indexes for performance
     CREATE INDEX IF NOT EXISTS idx_{table_name}_tn_inicial ON {schema}.{table_name}(tn_inicial);
     CREATE INDEX IF NOT EXISTS idx_{table_name}_data_agendamento ON {schema}.{table_name}(data_agendamento);
     """
@@ -185,20 +219,32 @@ def create_table_if_not_exists(
         with conn.cursor() as cursor:
             cursor.execute(create_table_sql)
         conn.commit()
-        logger.info(f"Tabela {schema}.{table_name} criada/verificada com sucesso")
+        logger.info(f"  Table {schema}.{table_name} created/verified successfully")
     except Exception as e:
         conn.rollback()
-        logger.error(f"Erro ao criar tabela: {e}")
+        logger.error(f"Error creating table: {e}")
         raise
 
 
-def bulk_insert_with_copy(
+def _bulk_insert_with_copy(
     conn, df: pd.DataFrame, table_name: str = IMPORT_TABLE, schema: str = IMPORT_SCHEMA
-):
-    # Criar StringIO buffer
+) -> None:
+    """
+    Perform bulk insert using PostgreSQL COPY FROM for maximum performance.
+
+    Args:
+        conn: Database connection
+        df: DataFrame to insert
+        table_name: Target table name
+        schema: Target schema
+        
+    Raises:
+        Exception: If bulk insert fails
+    """
+    # Create StringIO buffer
     output = StringIO()
 
-    # Converter DataFrame para CSV em memória
+    # Convert DataFrame to CSV in memory
     df.to_csv(
         output,
         sep="\t",
@@ -212,7 +258,7 @@ def bulk_insert_with_copy(
 
     try:
         with conn.cursor() as cursor:
-            # Usar COPY FROM para inserção ultra-rápida
+            # Use COPY FROM for ultra-fast insertion
             cursor.copy_expert(
                 f"""
                 COPY {schema}.{table_name} (
@@ -236,48 +282,62 @@ def bulk_insert_with_copy(
 
     except Exception as e:
         conn.rollback()
-        logger.error(f"Erro na inserção: {e}")
+        logger.error(f"Error in insertion: {e}")
         raise
 
 
-def import_single_file(
+def _import_single_file(
     file: Path,
     table_name: str = IMPORT_TABLE,
     schema: str = IMPORT_SCHEMA,
-    truncate_table: bool = True,
+    truncate_table: bool = False,
 ) -> int:
+    """
+    Import a single portability file into the database.
+
+    Args:
+        file: Path to the file to import
+        table_name: Target table name
+        schema: Target schema
+        truncate_table: Whether to truncate table before import
+
+    Returns:
+        int: Number of rows imported
+        
+    Raises:
+        Exception: If import fails
+    """
     start_time = time.time()
     total_rows = 0
 
-    logger.info(f"Iniciando importação do arquivo {file}.")
+    logger.info(f"  Starting import of file {file}.")
 
     try:
         with get_db_connection() as conn:
-            # Criar tabela se necessário
-            create_table_if_not_exists(conn, table_name, schema)
-
-            # Truncar tabela se solicitado
+            # Create table if necessary
+            _create_table_if_not_exists(conn, table_name, schema)
+            # Truncate table if requested
             if truncate_table:
                 with conn.cursor() as cursor:
                     cursor.execute(f"TRUNCATE TABLE {schema}.{table_name}")
-                conn.commit()
-                logger.info("Tabela truncada")
+                    conn.commit()
+                    logger.info("  Table truncated")
 
-            # Processar arquivo em chunks
+            # Process file in chunks
             chunk_count = 0
-            for chunk_df in read_file_in_chunks(file):
+            for chunk_df in _read_file_in_chunks(file):
                 chunk_count += 1
                 chunk_start = time.time()
 
-                # Inserir chunk usando COPY FROM
-                bulk_insert_with_copy(conn, chunk_df, table_name, schema)
+                # Insert chunk using COPY FROM
+                _bulk_insert_with_copy(conn, chunk_df, table_name, schema)
 
                 chunk_rows = len(chunk_df)
                 total_rows += chunk_rows
                 chunk_time = time.time() - chunk_start
                 chunk_time_str = f"{chunk_time:.2f}".replace(".", ",")
                 logger.info(
-                    f"Chunk {chunk_count:03d}: {chunk_rows:,} linhas inseridas em {chunk_time_str}s ({chunk_rows / chunk_time:,.0f} linhas/s)".replace(
+                    f"  Chunk {chunk_count:03d}: {chunk_rows:,} linhas inseridas em {chunk_time_str}s ({chunk_rows / chunk_time:,.0f} linhas/s)".replace(
                         ",", "."
                     )
                 )
@@ -290,64 +350,64 @@ def import_single_file(
         insert_speed_str = f"{total_rows / total_time:,.0f}".replace(",", ".")
 
     except Exception as e:
-        logger.error(f"Erro durante importação: {e}")
+        logger.error(f"Error during import: {e}")
         raise
 
     else:
         logger.info(
-            f"✅ Importação do arquivo {file.name} concluída: {total_rows_str} linhas em {total_time_str}s ({insert_speed_str} linhas/s)"
+            f"  ✅ Import of file {file.name} completed: {total_rows_str} rows in {total_time_str}s ({insert_speed_str} rows/s)"
         )
         return total_rows
 
 
-def import_multiple_files(file_list: list[Path], truncate_table: bool = True) -> dict:
+def _import_multiple_files(file_list: list[Path], truncate_table: bool = True) -> dict:
     """
-    Processa múltiplos arquivos de portabilidade sequencialmente.
+    Process multiple portability files sequentially.
 
     Args:
-        file_list: Lista de arquivos para processar
-        truncate_table: Se deve truncar a tabela antes da primeira importação
+        file_list: List of files to process
+        truncate_table: Whether to truncate table before first import
 
     Returns:
-        dict: Estatísticas detalhadas do processamento
+        dict: Detailed processing statistics
     """
     if not file_list or not isinstance(file_list, list):
-        logger.warning("Lista de arquivos está vazia ou não é uma lista.")
+        logger.warning("File list is empty or not a list.")
         return {}
 
-    logger.info(f"═══ PROCESSAMENTO DE {len(file_list)} ARQUIVOS ═══")
+    logger.info(f"Starting import of {len(file_list)} files.")
 
     start_time_total = time.time()
     results = {}
     total_rows_all_files = 0
 
     for idx, file in enumerate(file_list, 1):
-        logger.info(f"📁 Processando arquivo {idx}/{len(file_list)}:")
+        logger.info(f"📁 Processing file {idx}/{len(file_list)}:")
 
         try:
             file_start = time.time()
 
-            # Só trunca na primeira importação se solicitado
+            # Only truncate on first import if requested
             should_truncate = truncate_table and idx == 1
 
-            # Importar arquivo
-            file_rows = import_single_file(file, truncate_table=should_truncate)
+            # Import file
+            file_rows = _import_single_file(file, truncate_table=should_truncate)
 
             file_time = time.time() - file_start
 
             total_rows_all_files += file_rows
 
             results[file.name] = {
-                "status": "sucesso",
+                "status": "success",
                 "tempo": file_time,
                 "linhas": file_rows,
                 "velocidade": file_rows / file_time if file_time > 0 else 0,
             }
 
         except Exception as e:
-            logger.error(f"❌ Erro ao processar {file.name}: {e}")
+            logger.error(f"❌ Error processing {file.name}: {e}")
             results[file.name] = {
-                "status": "erro",
+                "status": "error",
                 "erro": str(e),
                 "tempo": 0,
                 "linhas": 0,
@@ -356,33 +416,81 @@ def import_multiple_files(file_list: list[Path], truncate_table: bool = True) ->
 
     total_time = time.time() - start_time_total
 
-    # Relatório final
-    sucessos = sum(1 for r in results.values() if r["status"] == "sucesso")
+    # Final report
+    sucessos = sum(1 for r in results.values() if r["status"] == "success")
     erros = len(results) - sucessos
     total_rows_all_files_str = f"{total_rows_all_files:,}".replace(",", ".")
     total_time_str = f"{total_time:.2f}".replace(".", ",")
     avg_speed_str = f"{total_rows_all_files / total_time:,.0f}".replace(",", ".")
 
-    logger.info(f"""
-    
-    ═══════════════════════════════════════════════════════════════════════
-    RELATÓRIO FINAL - PROCESSAMENTO DE MÚLTIPLOS ARQUIVOS
-    ═══════════════════════════════════════════════════════════════════════
-    📊 Arquivos processados: {len(file_list)}
-    ✅ Sucessos: {sucessos}
-    ❌ Erros: {erros}
-    📈 Total de linhas: {total_rows_all_files_str}
-    ⏱️  Tempo total: {total_time_str}s
-    🚀 Velocidade média: {avg_speed_str} linhas/s
-    ═══════════════════════════════════════════════════════════════════════
-    
-    """)
+    logger.info('File import report')
+    logger.info('════════════════════════════════════')
+    logger.info(f'📊 Files processed: {len(file_list)}')
+    logger.info(f'✅ Successes: {sucessos}')
+    logger.info(f'❌ Errors: {erros}')
+    logger.info(f'📈 Total rows: {total_rows_all_files_str}')
+    logger.info(f'⏱️ Total time: {total_time_str}s')
+    logger.info(f'🚀 Average speed: {avg_speed_str} rows/s')
+
+    if erros > 0:
+        logger.info('Files with errors:')
+        for file_name, stats in results.items():
+            if stats["status"] == "error":
+                logger.info(f' - {file_name}: {stats["erro"]}')
 
     return results
 
-if __name__ == "__main__":
-    folder = Path(
-        "/data/cdr/arquivos_auxiliares/abr/portabilidade/pip"
-    )
-    files = sorted(folder.rglob("*.csv.gz"))
-    import_multiple_files(files, truncate_table=True)
+def load_pip_reports(input_path: str, truncate_table: bool = True) -> dict:
+    """
+    Imports portability data from a file or folder.
+
+    The files must be reports extracted from the ABR Telecom PIP system,
+    in CSV format (*.csv.gz) with the following columns:
+
+    | Column                 | Example            | Description                           |
+    |------------------------|--------------------|---------------------------------------|
+    | TIPO REG               | 1                  | Record type                           |
+    | NUMERO BP              | 7266080            | BP number                             |
+    | TN INICIAL             | 2139838686         | Initial number                        |
+    | RECEPTORA              | 0123               | Recipient operator code               |
+    | RECEPTORA              | TIM SA             | Recipient operator name               |
+    | DOADORA                | 0121               | Donor operator code                   |
+    | DOADORA                | EMBRATEL           | Donor operator name                   |
+    | DATA AGENDAMENTO       | 11/06/2010 00:00:00| Scheduling date/time                  |
+    | STATUS ATUAL           | 1                  | Current status code                   |
+    | STATUS ATUAL           | Ativo              | Current status description            |
+    | IND. PORTAR PARA ORIGEM| Nao                | Indicator to port to origin (Sim/Nao) |
+
+    Example first rows of a CSV file:
+    TIPO REG;NUMERO BP;TN INICIAL;RECEPTORA;RECEPTORA;DOADORA;DOADORA;DATA AGENDAMENTO;STATUS ATUAL;STATUS ATUAL;IND. PORTAR PARA ORIGEM
+    1;7266080;2139838686;0123;TIM SA;0121;EMBRATEL;11/06/2010 00:00:00;1;Ativo;Nao
+    1;7266082;2139838688;0123;TIM SA;0121;EMBRATEL;11/06/2010 00:00:00;1;Ativo;Nao
+    1;7266083;2139838689;0123;TIM SA;0121;EMBRATEL;11/06/2010 00:00:00;1;Ativo;Nao
+    1;7266084;2139838690;0123;TIM SA;0121;EMBRATEL;11/06/2010 00:00:00;1;Ativo;Nao
+
+    Args:
+        input_file_or_folder: Path to the file or folder
+        truncate_table: Whether to truncate the table before import
+
+    Returns:
+        dict: Detailed processing statistics
+        
+    Raises:
+        FileNotFoundError: If the input path does not exist
+    """
+    input_path = Path(input_path)
+
+    if not input_path.exists():
+        raise FileNotFoundError(
+            f"Input file or folder {input_path} not found."
+        )
+    
+    if input_path.is_file():
+        files_to_import = [input_path]
+    elif input_path.is_dir():
+        files_to_import = sorted(input_path.rglob("*.csv.gz"))
+    else:
+        logger.error(f"Invalid path: {input_path}")
+        return {}
+
+    return _import_multiple_files(files_to_import, truncate_table=truncate_table)
