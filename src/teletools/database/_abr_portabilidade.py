@@ -14,10 +14,10 @@ The module supports:
 
 Typical usage:
     from _abr_portabilidade import load_pip_reports
-    
+
     # Import single file
     results = load_pip_reports('/path/to/file.csv.gz')
-    
+
     # Import all files from directory
     results = load_pip_reports('/path/to/directory/')
 """
@@ -35,38 +35,38 @@ from _database_config import get_db_connection
 # Advanced logging configuration for console and file output
 def _setup_logger():
     """Configure logger for console display and file logging.
-    
+
     Returns:
         logging.Logger: Configured logger instance
     """
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
-    
+
     # Remove existing handlers to avoid duplication
     if logger.handlers:
         logger.handlers.clear()
-    
+
     # Message format
     formatter = logging.Formatter(
-        '%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        "%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
-    
+
     # Console handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
-    
+
     # File handler
-    file_handler = logging.FileHandler('abr_portabilidade.log', encoding='utf-8')
+    file_handler = logging.FileHandler("abr_portabilidade.log", encoding="utf-8")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
-    
+
     # Add handlers to logger
     logger.addHandler(console_handler)
     logger.addHandler(file_handler)
-    
+
     return logger
+
 
 # Configure logger
 logger = _setup_logger()
@@ -91,7 +91,7 @@ def _read_file_in_chunks(
 
     Yields:
         pd.DataFrame: Data chunk with filename column added
-        
+
     Raises:
         Exception: If file reading fails
     """
@@ -189,7 +189,7 @@ def _create_table_if_not_exists(
         conn: Database connection
         table_name: Name of the table
         schema: Table schema
-        
+
     Raises:
         Exception: If table creation fails
     """
@@ -237,7 +237,7 @@ def _bulk_insert_with_copy(
         df: DataFrame to insert
         table_name: Target table name
         schema: Target schema
-        
+
     Raises:
         Exception: If bulk insert fails
     """
@@ -303,7 +303,7 @@ def _import_single_file(
 
     Returns:
         int: Number of rows imported
-        
+
     Raises:
         Exception: If import fails
     """
@@ -360,7 +360,12 @@ def _import_single_file(
         return total_rows
 
 
-def _import_multiple_files(file_list: list[Path], truncate_table: bool = True) -> dict:
+def _import_multiple_files(
+    file_list: list[Path],
+    table_name: str = IMPORT_TABLE,
+    schema: str = IMPORT_SCHEMA,
+    truncate_table: bool = False,
+) -> dict:
     """
     Process multiple portability files sequentially.
 
@@ -391,7 +396,12 @@ def _import_multiple_files(file_list: list[Path], truncate_table: bool = True) -
             should_truncate = truncate_table and idx == 1
 
             # Import file
-            file_rows = _import_single_file(file, truncate_table=should_truncate)
+            file_rows = _import_single_file(
+                file,
+                table_name=table_name,
+                schema=schema,
+                truncate_table=should_truncate,
+            )
 
             file_time = time.time() - file_start
 
@@ -423,24 +433,30 @@ def _import_multiple_files(file_list: list[Path], truncate_table: bool = True) -
     total_time_str = f"{total_time:.2f}".replace(".", ",")
     avg_speed_str = f"{total_rows_all_files / total_time:,.0f}".replace(",", ".")
 
-    logger.info('File import report')
-    logger.info('════════════════════════════════════')
-    logger.info(f'📊 Files processed: {len(file_list)}')
-    logger.info(f'✅ Successes: {sucessos}')
-    logger.info(f'❌ Errors: {erros}')
-    logger.info(f'📈 Total rows: {total_rows_all_files_str}')
-    logger.info(f'⏱️ Total time: {total_time_str}s')
-    logger.info(f'🚀 Average speed: {avg_speed_str} rows/s')
+    logger.info("File import report")
+    logger.info("════════════════════════════════════")
+    logger.info(f"📊 Files processed: {len(file_list)}")
+    logger.info(f"✅ Successes: {sucessos}")
+    logger.info(f"❌ Errors: {erros}")
+    logger.info(f"📈 Total rows: {total_rows_all_files_str}")
+    logger.info(f"⏱️ Total time: {total_time_str}s")
+    logger.info(f"🚀 Average speed: {avg_speed_str} rows/s")
 
     if erros > 0:
-        logger.info('Files with errors:')
+        logger.info("Files with errors:")
         for file_name, stats in results.items():
             if stats["status"] == "error":
-                logger.info(f' - {file_name}: {stats["erro"]}')
+                logger.info(f" - {file_name}: {stats['erro']}")
 
     return results
 
-def load_pip_reports(input_path: str, truncate_table: bool = True) -> dict:
+
+def load_pip_reports(
+    input_path: str,
+    table_name: str = IMPORT_TABLE,
+    schema: str = IMPORT_SCHEMA,
+    truncate_table: bool = False
+) -> dict:
     """
     Imports portability data from a file or folder.
 
@@ -474,17 +490,15 @@ def load_pip_reports(input_path: str, truncate_table: bool = True) -> dict:
 
     Returns:
         dict: Detailed processing statistics
-        
+
     Raises:
         FileNotFoundError: If the input path does not exist
     """
     input_path = Path(input_path)
 
     if not input_path.exists():
-        raise FileNotFoundError(
-            f"Input file or folder {input_path} not found."
-        )
-    
+        raise FileNotFoundError(f"Input file or folder {input_path} not found.")
+
     if input_path.is_file():
         files_to_import = [input_path]
     elif input_path.is_dir():
@@ -493,4 +507,4 @@ def load_pip_reports(input_path: str, truncate_table: bool = True) -> dict:
         logger.error(f"Invalid path: {input_path}")
         return {}
 
-    return _import_multiple_files(files_to_import, truncate_table=truncate_table)
+    return _import_multiple_files(files_to_import, table_name=table_name, schema=schema, truncate_table=truncate_table)
