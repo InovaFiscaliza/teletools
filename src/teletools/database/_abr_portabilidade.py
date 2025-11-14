@@ -82,9 +82,9 @@ def read_file_in_chunks(
         "tipo_registro": "category",
         "numero_bp": "int",
         "tn_inicial": "int",
-        "cod_receptora": "int",
+        "cod_receptora": "str",
         "nome_receptora": "str",
-        "cod_doadora": "int",
+        "cod_doadora": "str",
         "nome_doadora": "str",
         "cod_status": "int",
         "status": "category",
@@ -124,6 +124,7 @@ def process_chunk(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         DataFrame processado
     """
+
     # Mapeamento otimizado usando categorical
     map_ind_portar_origem = {"Sim": 1, "Nao": 0}
 
