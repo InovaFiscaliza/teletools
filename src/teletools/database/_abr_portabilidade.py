@@ -7,11 +7,41 @@ from pathlib import Path
 import pandas as pd
 from _database_config import get_db_connection
 
-# Configuração de logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+
+# Configuração avançada de logging para console e arquivo
+def setup_logger():
+    """Configura logger para exibir no console e gravar em arquivo."""
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    
+    # Remove handlers existentes para evitar duplicação
+    if logger.handlers:
+        logger.handlers.clear()
+    
+    # Formato das mensagens
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Handler para console
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    
+    # Handler para arquivo
+    file_handler = logging.FileHandler('abr_portabilidade.log', encoding='utf-8')
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+    
+    # Adicionar handlers ao logger
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+    
+    return logger
+
+# Configurar logger
+logger = setup_logger()
 
 # Configurações de performance
 CHUNK_SIZE = 100000  # Processar em chunks de 100k linhas
