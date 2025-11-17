@@ -93,7 +93,7 @@ Configure a conexão ao servidor PostgreSQL com os seguintes parâmetros:
 | Password             | `POSTGRES_PASSWORD`  |
 
 
-![pgAdmin Register - Server](../images/postgre_connect.png "pgAdmin Register - Server")
+![pgAdmin Register - Server](../../images/postgre_connect.png "pgAdmin Register - Server")
 
 
 ### Instalação das extensões
@@ -159,93 +159,338 @@ Verifique os parâmetros listados e os ajuste, se necessário.
 
 ### Configuração do banco de dado CDR
 
-#### Criação dos grupos e usuários
+#### Criação/atualização dos esquemas, roles e grante
+```sql
+-- =======================================
+-- Script idempotente para criação/atualização de roles e grants
+-- =======================================
+-- Este script:
+-- - Cria roles se não existirem, ou altera atributos se existirem.
+-- - Grants são idempotentes (GRANT múltiplas vezes não causa erro).
+-- - ALTER DEFAULT PRIVILEGES sobrescreve existentes para o role.
+-- - Para SUPERUSER: Altera se necessário.
+-- Rode como superusuário (ex.: admin).
 
-Crie o grupo de usuários
-```sql
--- Criar grupo de usuários
-CREATE ROLE cdr_database_users WITH
-	NOLOGIN
-	NOSUPERUSER
-	NOCREATEDB
-	NOCREATEROLE
-	INHERIT
-	NOREPLICATION
-	NOBYPASSRLS
-	CONNECTION LIMIT -1;
-COMMENT ON ROLE cdr_database_users IS 'Grupo de usuários do banco de dados CDR';
-```
-Crie os usuários
-```sql
--- Criar usuários
+-- =======================================
+-- Definição dos esquemas e suas descrições
+-- =======================================
+-- Tabela temporária para armazenar os esquemas
+CREATE TEMP TABLE IF NOT EXISTS temp_schemas (
+    name TEXT PRIMARY KEY,
+    description TEXT
+);
+
+-- Limpa e popula a tabela com os esquemas
+TRUNCATE temp_schemas;
+INSERT INTO temp_schemas (name, description) VALUES
+    ('dw', 'Esquema temporário para armazenamento de dados disponíveis no DW_ANATEL'),
+    ('entrada', 'Esquema para armazenamento dos dados de entrada.'),
+    ('mapas', 'Esquema para armazenamento de mapas.'),
+    ('public', 'Esquema público padrão do PostgreSQL.');
+
+-- Criação dos esquemas
 DO $$
 DECLARE
-    user_name TEXT := '<user_name>';
-    user_password TEXT := '<user_password>';
-    user_full_name TEXT := '<user_full_name>';
+    schema_rec RECORD;
 BEGIN
-    -- Criar a role
-    EXECUTE format('CREATE ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOREPLICATION NOBYPASSRLS CONNECTION LIMIT -1 PASSWORD %L', 
-                   user_name, user_password);
-    
-    -- Conceder privilégios
-    EXECUTE format('GRANT cdr_database_users TO %I', user_name);
-    
-    -- Adicionar comentário
-    EXECUTE format('COMMENT ON ROLE %I IS %L', user_name, user_full_name);
-END $$;
-```
-
-### Criação dos esquemas do banco de dados CDR
-
-Ajuste as permissões do banco de dados
-```sql
--- Definir a lista de esquemas e seus comentários
-DO $$
-DECLARE
-    schema_record RECORD;
-    schemas_list TEXT[][] := ARRAY[
-        ['entrada', 'Esquema para armazenamento dos dados de entrada.'],
-        ['mapas', 'Esquema para armazenamento de mapas.'],
-        ['public', 'Esquema público padrão do PostgreSQL.']
-        -- Adicione mais esquemas aqui conforme necessário
-    ];
-BEGIN
-    -- Iterar sobre cada esquema na lista
-    FOR i IN 1..array_length(schemas_list, 1) LOOP
-        DECLARE
-            schema_name TEXT := schemas_list[i][1];
-            schema_comment TEXT := schemas_list[i][2];
-        BEGIN
-            -- Criar o esquema
-            EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I AUTHORIZATION pg_database_owner', schema_name);
-            RAISE NOTICE 'Esquema % criado', schema_name;
-            
-            -- Adicionar comentário ao esquema
-            EXECUTE format('COMMENT ON SCHEMA %I IS %L', schema_name, schema_comment);
-            
-            -- Conceder permissões ao esquema
-            EXECUTE format('GRANT USAGE ON SCHEMA %I TO PUBLIC', schema_name);
-            EXECUTE format('GRANT ALL ON SCHEMA %I TO cdr_database_users', schema_name);
-
-            -- Conceder permissões para objetos no esquema
-            EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA %I TO cdr_database_users', schema_name);
-            EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %I TO cdr_database_users', schema_name);
-            EXECUTE format('GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA %I TO cdr_database_users', schema_name);
-
-            -- Alterar permissões padrão para objetos futuros no esquema
-            EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA %I GRANT ALL ON TABLES TO cdr_database_users', schema_name);
-            EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA %I GRANT ALL ON SEQUENCES TO cdr_database_users', schema_name);
-            EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA %I GRANT EXECUTE ON FUNCTIONS TO cdr_database_users', schema_name);
-            EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA %I GRANT USAGE ON TYPES TO cdr_database_users', schema_name);
-            
-            RAISE NOTICE 'Permissões configuradas para o esquema %', schema_name;
-        END;
+    FOR schema_rec IN SELECT name, description FROM temp_schemas
+    LOOP
+        -- Criar esquema se não existir
+        IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = schema_rec.name) THEN
+            EXECUTE format('CREATE SCHEMA %I', schema_rec.name);
+        END IF;
+        
+        -- Definir comentário no esquema
+        EXECUTE format('COMMENT ON SCHEMA %I IS %L', schema_rec.name, schema_rec.description);
     END LOOP;
 END $$;
+
+-- =======================================
+-- Definição das funções auxiliares
+-- =======================================
+-- Função auxiliar para verificar se role existe (usada em DO)
+CREATE OR REPLACE FUNCTION role_exists(role_name TEXT) RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Função auxiliar para obter lista de nomes de esquemas
+CREATE OR REPLACE FUNCTION get_schema_names() RETURNS TEXT[] AS $$
+BEGIN
+    RETURN ARRAY(SELECT name FROM temp_schemas ORDER BY name);
+END;
+$$ LANGUAGE plpgsql;
+
+-- =======================================
+-- Criação/Atualização dos grupos (roles)
+-- =======================================
+
+-- cdr_user_ler
+DO $$
+BEGIN
+    IF NOT role_exists('cdr_user_ler') THEN
+        CREATE ROLE cdr_user_ler
+           NOLOGIN
+           NOSUPERUSER
+           NOCREATEDB
+           NOCREATEROLE
+           NOREPLICATION
+           NOBYPASSRLS;
+    ELSE
+        -- Altera atributos se necessário (ex.: garantir NOSUPERUSER, etc.)
+        ALTER ROLE cdr_user_ler NOLOGIN;
+        ALTER ROLE cdr_user_ler NOSUPERUSER;
+        ALTER ROLE cdr_user_ler NOCREATEDB;
+        ALTER ROLE cdr_user_ler NOCREATEROLE;
+        ALTER ROLE cdr_user_ler NOREPLICATION;
+        ALTER ROLE cdr_user_ler NOBYPASSRLS;
+    END IF;
+END $$;
+
+-- cdr_user_gravar
+DO $$
+BEGIN
+    IF NOT role_exists('cdr_user_gravar') THEN
+        CREATE ROLE cdr_user_gravar
+           NOLOGIN
+           NOSUPERUSER
+           NOCREATEDB
+           NOCREATEROLE
+           NOREPLICATION
+           NOBYPASSRLS;
+    ELSE
+        ALTER ROLE cdr_user_gravar NOLOGIN;
+        ALTER ROLE cdr_user_gravar NOSUPERUSER;
+        ALTER ROLE cdr_user_gravar NOCREATEDB;
+        ALTER ROLE cdr_user_gravar NOCREATEROLE;
+        ALTER ROLE cdr_user_gravar NOREPLICATION;
+        ALTER ROLE cdr_user_gravar NOBYPASSRLS;
+    END IF;
+END $$;
+
+-- cdr_user_super
+DO $$
+BEGIN
+    IF NOT role_exists('cdr_user_super') THEN
+        CREATE ROLE cdr_user_super NOLOGIN SUPERUSER;
+    ELSE
+        ALTER ROLE cdr_user_super NOLOGIN;
+        ALTER ROLE cdr_user_super SUPERUSER;  -- Garante superusuário
+    END IF;
+END $$;
+
+-- =======================================
+-- Grants para cdr_user_ler: Apenas leitura (SELECT em tables e views)
+-- =======================================
+-- Para cada esquema existente
+DO $$
+DECLARE
+    schema_name TEXT;
+BEGIN
+    FOREACH schema_name IN ARRAY get_schema_names() LOOP
+        EXECUTE format('GRANT USAGE ON SCHEMA %I TO cdr_user_ler', schema_name);
+        EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %I TO cdr_user_ler', schema_name);
+        EXECUTE format('GRANT SELECT ON ALL SEQUENCES IN SCHEMA %I TO cdr_user_ler', schema_name);
+        -- Para views: SELECT já cobre, pois views são tratadas como tables para grants
+    END LOOP;
+END $$;
+
+-- Para tabelas/views futuras (default privileges) - sobrescreve se existirem
+DO $$
+DECLARE
+    schema_name TEXT;
+BEGIN
+    FOREACH schema_name IN ARRAY get_schema_names() LOOP
+        EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT ON TABLES TO cdr_user_ler', schema_name);
+    END LOOP;
+END $$;
+
+-- =======================================
+-- Grants para cdr_user_gravar: Leitura + Gravação + Criação/Alteração/Apagamento de tabelas e dados
+-- =======================================
+-- Para cada esquema existente
+DO $$
+DECLARE
+    schema_name TEXT;
+BEGIN
+    FOREACH schema_name IN ARRAY get_schema_names() LOOP
+        EXECUTE format('GRANT USAGE, CREATE ON SCHEMA %I TO cdr_user_gravar', schema_name);  -- CREATE para criar/alterar/drop tables no schema
+        EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA %I TO cdr_user_gravar', schema_name);  -- ALL inclui SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES
+        EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %I TO cdr_user_gravar', schema_name);  -- ALL para sequences (USAGE, SELECT)
+    END LOOP;
+END $$;
+
+-- Para tabelas/views futuras (default privileges) - sobrescreve se existirem
+DO $$
+DECLARE
+    schema_name TEXT;
+BEGIN
+    FOREACH schema_name IN ARRAY get_schema_names() LOOP
+        EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT ALL PRIVILEGES ON TABLES TO cdr_user_gravar', schema_name);
+    END LOOP;
+END $$;
+
+-- =======================================
+-- Grants para cdr_user_super: Como é SUPERUSER, herda tudo, mas concedemos explicitamente para schemas
+-- =======================================
+-- Para cada esquema existente (USAGE e CREATE para completude, mas SUPERUSER ignora restrições)
+DO $$
+DECLARE
+    schema_name TEXT;
+BEGIN
+    FOREACH schema_name IN ARRAY get_schema_names() LOOP
+        EXECUTE format('GRANT ALL ON SCHEMA %I TO cdr_user_super', schema_name);  -- ALL inclui USAGE, CREATE, etc.
+    END LOOP;
+END $$;
+
+-- Para objetos existentes (tables, sequences) - SUPERUSER pode acessar tudo, mas para explicitar
+DO $$
+DECLARE
+    schema_name TEXT;
+BEGIN
+    FOREACH schema_name IN ARRAY get_schema_names() LOOP
+        EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA %I TO cdr_user_super', schema_name);
+        EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %I TO cdr_user_super', schema_name);
+    END LOOP;
+END $$;
+
+-- Para objetos futuros - SUPERUSER ignora, mas para consistência (sobrescreve se existirem)
+DO $$
+DECLARE
+    schema_name TEXT;
+BEGIN
+    FOREACH schema_name IN ARRAY get_schema_names() LOOP
+        EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT ALL PRIVILEGES ON TABLES TO cdr_user_super', schema_name);
+        EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT ALL PRIVILEGES ON SEQUENCES TO cdr_user_super', schema_name);
+        EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT ALL PRIVILEGES ON FUNCTIONS TO cdr_user_super', schema_name);  -- Para funções
+    END LOOP;
+END $$;
+
+-- Limpeza: Remove as funções auxiliares e tabela temporária (opcional, mas mantém o DB limpo)
+DROP FUNCTION IF EXISTS role_exists(TEXT);
+DROP FUNCTION IF EXISTS get_schema_names();
+DROP TABLE IF EXISTS temp_schemas;
 ```
 
-Opcionalmente, baixe, altere e execute o [script](sql/create_schemas.sql).
+#### Criação dos usuários
+
+Criar usuário super (administrador do banco de dados)
+```sql
+-- =======================================
+-- Script idempotente para criação/atualização de usuários
+-- =======================================
+-- Este script:
+-- - Cria usuários se não existirem, ou altera atributos se existirem.
+-- - Grants são idempotentes (GRANT múltiplas vezes não causa erro).
+-- Rode como superusuário (ex.: admin).
+
+-- =======================================
+-- Criação/Atualização do usuário específico e grant do grupo super
+-- =======================================
+DO $$
+DECLARE
+    user_name TEXT := 'cdr.service.super';
+    user_password TEXT := 'senha_do_usuario_aqui';  -- Defina a senha aqui se necessário
+    user_description TEXT := 'Usuário de serviço para acesso ao banco de dados CDR - Superusuário';
+BEGIN
+    IF NOT role_exists(user_name) THEN
+        IF user_password IS NOT NULL THEN
+            EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L INHERIT CONNECTION LIMIT -1', user_name, user_password);
+        ELSE
+            EXECUTE format('CREATE ROLE %I WITH LOGIN INHERIT CONNECTION LIMIT -1', user_name);
+        END IF;
+    ELSE
+        -- Altera se necessário (ex.: garantir LOGIN e INHERIT)
+        EXECUTE format('ALTER ROLE %I LOGIN', user_name);
+        EXECUTE format('ALTER ROLE %I INHERIT', user_name);
+        EXECUTE format('ALTER ROLE %I CONNECTION LIMIT -1', user_name);
+        -- Atualiza senha se definida
+        IF user_password IS NOT NULL THEN
+            EXECUTE format('ALTER ROLE %I PASSWORD %L', user_name, user_password);
+        END IF;
+    END IF;
+    
+    EXECUTE format('COMMENT ON ROLE %I IS %L', user_name, user_description);  -- Sobrescreve comentário se existir
+    
+    -- Grant do grupo: Idempotente, mas revoga se já existir para garantir
+    EXECUTE format('REVOKE cdr_user_super FROM %I', user_name);
+    EXECUTE format('GRANT cdr_user_super TO %I', user_name);
+END $$;
+```
+Criar usuário para gravar (pode consultar, incluir e excluir objetos)
+```sql
+-- =======================================
+-- Criação/Atualização do usuário específico e grant do grupo gravar
+-- =======================================
+DO $$
+DECLARE
+    user_name TEXT := 'cdr.service.gravar';
+    user_password TEXT := 'senha_do_usuario_aqui';  -- Defina a senha aqui se necessário
+    user_description TEXT := 'Usuário de serviço para acesso ao banco de dados CDR - Gravar';
+BEGIN
+    IF NOT role_exists(user_name) THEN
+        IF user_password IS NOT NULL THEN
+            EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L INHERIT CONNECTION LIMIT -1', user_name, user_password);
+        ELSE
+            EXECUTE format('CREATE ROLE %I WITH LOGIN INHERIT CONNECTION LIMIT -1', user_name);
+        END IF;
+    ELSE
+        -- Altera se necessário (ex.: garantir LOGIN e INHERIT)
+        EXECUTE format('ALTER ROLE %I LOGIN', user_name);
+        EXECUTE format('ALTER ROLE %I INHERIT', user_name);
+        EXECUTE format('ALTER ROLE %I CONNECTION LIMIT -1', user_name);
+        -- Atualiza senha se definida
+        IF user_password IS NOT NULL THEN
+            EXECUTE format('ALTER ROLE %I PASSWORD %L', user_name, user_password);
+        END IF;
+    END IF;
+    
+    EXECUTE format('COMMENT ON ROLE %I IS %L', user_name, user_description);  -- Sobrescreve comentário se existir
+    
+    -- Grant do grupo: Idempotente, mas revoga se já existir para garantir
+    EXECUTE format('REVOKE cdr_user_super FROM %I', user_name);
+	EXECUTE format('REVOKE cdr_user_gravar FROM %I', user_name);
+    EXECUTE format('GRANT cdr_user_gravar TO %I', user_name);
+END $$;
+```
+Criar usário de leitura (pode apenas fazer consultas)
+```sql
+-- =======================================
+-- Criação/Atualização do usuário específico e grant do grupo ler
+-- =======================================
+DO $$
+DECLARE
+    user_name TEXT := 'cdr.service.gravar';
+    user_password TEXT := NULL;  -- Defina a senha aqui se necessário
+    user_description TEXT := 'Usuário de serviço para acesso ao banco de dados CDR - Gravar';
+BEGIN
+    IF NOT role_exists(user_name) THEN
+        IF user_password IS NOT NULL THEN
+            EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L INHERIT CONNECTION LIMIT -1', user_name, user_password);
+        ELSE
+            EXECUTE format('CREATE ROLE %I WITH LOGIN INHERIT CONNECTION LIMIT -1', user_name);
+        END IF;
+    ELSE
+        -- Altera se necessário (ex.: garantir LOGIN e INHERIT)
+        EXECUTE format('ALTER ROLE %I LOGIN', user_name);
+        EXECUTE format('ALTER ROLE %I INHERIT', user_name);
+        EXECUTE format('ALTER ROLE %I CONNECTION LIMIT -1', user_name);
+        -- Atualiza senha se definida
+        IF user_password IS NOT NULL THEN
+            EXECUTE format('ALTER ROLE %I PASSWORD %L', user_name, user_password);
+        END IF;
+    END IF;
+    
+    EXECUTE format('COMMENT ON ROLE %I IS %L', user_name, user_description);  -- Sobrescreve comentário se existir
+    
+    -- Grant do grupo: Idempotente, mas revoga se já existir para garantir
+    EXECUTE format('REVOKE cdr_user_super FROM %I', user_name);
+	EXECUTE format('REVOKE cdr_user_gravar FROM %I', user_name);
+	EXECUTE format('REVOKE cdr_user_ler FROM %I', user_name);
+    EXECUTE format('GRANT cdr_user_ler TO %I', user_name);
+END $$;
+```
 
 
 ---
