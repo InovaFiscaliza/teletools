@@ -28,7 +28,7 @@ from io import StringIO
 from pathlib import Path
 
 import pandas as pd
-from _database_config import get_db_connection
+from teletools.database._database_config import get_db_connection
 
 from teletools.utils import setup_logger
 
@@ -427,19 +427,19 @@ def load_pip_reports(
     The files must be reports extracted from the ABR Telecom PIP system,
     in CSV format (*.csv.gz) with the following columns:
 
-    | Column                 | Example            | Description                           |
-    |------------------------|--------------------|---------------------------------------|
-    | TIPO REG               | 1                  | Record type                           |
-    | NUMERO BP              | 7266080            | BP number                             |
-    | TN INICIAL             | 2139838686         | Initial number                        |
-    | RECEPTORA              | 0123               | Recipient operator code               |
-    | RECEPTORA              | TIM SA             | Recipient operator name               |
-    | DOADORA                | 0121               | Donor operator code                   |
-    | DOADORA                | EMBRATEL           | Donor operator name                   |
-    | DATA AGENDAMENTO       | 11/06/2010 00:00:00| Scheduling date/time                  |
-    | STATUS ATUAL           | 1                  | Current status code                   |
-    | STATUS ATUAL           | Ativo              | Current status description            |
-    | IND. PORTAR PARA ORIGEM| Nao                | Indicator to port to origin (Sim/Nao) |
+    |Report column           |PIP Layout column |PIP Description         |
+    |------------------------|------------------|------------------------|
+    |TIPO REG                |                  |                        |
+    |NUMERO BP               |POBNROBILHETE     |Número BP               |
+    |TN INICIAL              |POBTNINI          |TN Inicial              |
+    |RECEPTORA               |CIACODCIA         |Receptora               |
+    |RECEPTORA               |POBCIATXTDESC     |Receptora               |
+    |DOADORA                 |CIACODCIA_DOA     |Doadora                 |
+    |DOADORA                 |POBCIATXTDESC_DOA |Doadora                 |
+    |DATA AGENDAMENTO        |POBDATULTAG       |Data Agendamento        |
+    |STATUS ATUAL            |POBNROSTATUS      |Status Atual            |
+    |STATUS ATUAL            |POBTXTDESCSTATUS  |Status Atual            |
+    |IND. PORTAR PARA ORIGEM |POBINDPTO         |Ind. Portar para Origem |
 
     Example first rows of a CSV file:
     TIPO REG;NUMERO BP;TN INICIAL;RECEPTORA;RECEPTORA;DOADORA;DOADORA;DATA AGENDAMENTO;STATUS ATUAL;STATUS ATUAL;IND. PORTAR PARA ORIGEM
