@@ -1,4 +1,4 @@
-# Módulo de Importação de Dados da ABR Telecom
+# Módulo de importação de dados da ABR Telecom
 
 ## Visão Geral
 
@@ -19,7 +19,7 @@ O módulo processa arquivos com informações de portabilidade e numeração e o
 
 
 
-## Importação dos dados de portabilidade
+## Importação do Histórico de Portabilidade
 
 ### Formato do Arquivo de Entrada
 
