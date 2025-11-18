@@ -166,7 +166,7 @@ def _clean_numbers(text):
     """
     letters = string.ascii_letters
     punctuation = string.punctuation
-    remove_table = str.maketrans("", "", letters + punctuation)
+    remove_table = str.maketrans("", "", letters + punctuation + " ")
     return text.translate(remove_table)
 
 
@@ -231,12 +231,12 @@ def normalize_number(subscriber_number, national_destination_code=""):
             normalized_subscriber_number = (
                 f"{national_destination_code}{normalized_subscriber_number}"
             )
-        return [normalized_subscriber_number, True]
+        return (normalized_subscriber_number, True)
 
     return (subscriber_number, False)
 
 
-def normalize_number_pair(number_a, number_b):
+def normalize_number_pair(number_a, number_b, national_destination_code=""):
     """
     Normalize a pair of related Brazilian phone numbers with contextual area code inference.
 
@@ -247,6 +247,8 @@ def normalize_number_pair(number_a, number_b):
     Args:
         number_a (str or int): First phone number, often the calling/originating number.
         number_b (str or int): Second phone number, often the called/destination number.
+        national_destination_code (str, optional): Two-digit area code to prepend
+            to 8-9 digit local numbers. Defaults to "".
 
     Returns:
         tuple: A four-element tuple containing:
@@ -276,7 +278,8 @@ def normalize_number_pair(number_a, number_b):
     normalized_number_a, is_number_a_valid = normalize_number(number_a)
 
     if is_number_a_valid and len(normalized_number_a) in (10, 11):
-        national_destination_code = normalized_number_a[:2]
+        if national_destination_code=="":
+            national_destination_code = normalized_number_a[:2]
     else:
         national_destination_code = ""
 
