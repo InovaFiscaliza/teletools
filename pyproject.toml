@@ -19,6 +19,7 @@ dependencies = [
 
 [project.scripts]
 cipher_cli = "teletools.cipher.cipher_cli:app"
+abr_loader = "teletools.database.abr_loader:app"
 
 [build-system]
 requires = ["hatchling"]

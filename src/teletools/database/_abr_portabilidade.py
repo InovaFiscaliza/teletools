@@ -403,7 +403,7 @@ def _import_multiple_files(
     logger.info(f"✅ Successes: {sucessos}")
     logger.info(f"❌ Errors: {erros}")
     logger.info(f"📈 Total rows: {total_rows_all_files_str}")
-    logger.info(f"⏱️ Total time: {total_time_str}s")
+    logger.info(f"🕑 Total time: {total_time_str}s")
     logger.info(f"🚀 Average speed: {avg_speed_str} rows/s")
 
     if erros > 0:
@@ -420,6 +420,7 @@ def load_pip_reports(
     table_name: str = IMPORT_TABLE,
     schema: str = IMPORT_SCHEMA,
     truncate_table: bool = False,
+    rebuild_database: bool = False,
 ) -> dict:
     """
     Imports portability data from a file or folder.
@@ -470,6 +471,9 @@ def load_pip_reports(
     else:
         logger.error(f"Invalid path: {input_path}")
         return {}
+    
+    if rebuild_database:
+        raise NotImplementedError("Rebuild database functionality is not implemented yet.")
 
     return _import_multiple_files(
         files_to_import,

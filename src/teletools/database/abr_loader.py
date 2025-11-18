@@ -46,8 +46,8 @@ import sys
 
 import typer
 
-from teletools.database._abr_portabilidade import load_pip_reports
-from teletools.database._abr_numeracao import load_nsapn_files
+from ._abr_portabilidade import load_pip_reports
+from ._abr_numeracao import load_nsapn_files
 
 # Initialize Typer app with enhanced configuration
 app = typer.Typer(
@@ -57,8 +57,8 @@ app = typer.Typer(
 )
 
 
-@app.command(name="load-portability")
-def load_portabilidade(
+@app.command(name="load-pip")
+def load_pip(
     input_path: Annotated[
         str,
         typer.Argument(
@@ -93,6 +93,15 @@ def load_portabilidade(
             "Use --no-truncate-table to append to existing data.",
         ),
     ] = True,
+    rebuild_database: Annotated[
+        bool,
+        typer.Option(
+            "--rebuild-database/--no-rebuild-database",
+            help="Rebuild database entire portability database. "
+            "When enabled, existing data will be deleted before import. "
+            "Use --no-rebuild-database to append to existing data.",
+        ),
+    ] = False,
 ) -> None:
     """Import ABR portability data into PostgreSQL database.
 
@@ -112,6 +121,7 @@ def load_portabilidade(
         table_name: Target database table (created if doesn't exist)
         schema: Target database schema (must already exist)
         truncate_table: Whether to clear existing data before import
+        rebuild_database: Whether to rebuild the entire database before import
 
     Returns:
         None: Results are logged to console and log file
@@ -136,11 +146,12 @@ def load_portabilidade(
         table_name=table_name,
         schema=schema,
         truncate_table=truncate_table,
+        rebuild_database=rebuild_database,
     )
 
 
-@app.command(name="load-numbering-plan")
-def load_numbering_plan(
+@app.command(name="load-nsapn")
+def load_nsapn(
     input_path: Annotated[
         str,
         typer.Argument(
