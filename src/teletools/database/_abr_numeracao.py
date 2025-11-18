@@ -28,6 +28,10 @@ Data Sources - Official ABR Telecom Portal:
       https://easi.abrtelecom.com.br/nsapn/#/public/files/download/stfc-fatb
       Fixed telephony outside basic tariff area numbering
 
+    - SUP (Serviços de Utilidade Pública):
+        https://easi.abrtelecom.com.br/nsapn/#/public/files/download/sup
+        Public utility service numbering
+
     Note: These files contain official ANATEL numbering data and are 
     updated regularly. Always download the latest versions for accurate data.
 
@@ -35,12 +39,14 @@ Supported File Types:
     - STFC (Fixed Telephony): Complete numbering data with all columns
     - SMP/SME (Mobile Telephony): Numbering data without locality information
     - CNG (Non-Geographic Codes): Special codes with simplified structure
+    - SUP (Public Utility Services): Public utility service numbering
 
 File Type Detection:
     File type is automatically detected based on filename prefix:
     - Files starting with "STFC": Fixed telephony (all columns)
     - Files starting with "SMP" or "SME": Mobile telephony (subset of columns)
     - Files starting with "CNG": Non-geographic codes (minimal columns)
+    - Files starting with "SUP": Public utility services (specific columns)
 
 Module Features:
     - Automatic file type detection and appropriate column mapping
@@ -84,8 +90,9 @@ CHUNK_SIZE = 100000  # Process in chunks of 100k rows
 
 # Table and schema names
 IMPORT_SCHEMA = "entrada"
-TABLE_NUMERACAO = "abr_numeracao"
-TABLE_CNG = "abr_cng"
+TABLE_NUMERACAO = "abr_numeracao_teletools"
+TABLE_CNG = "abr_cng_teletools"
+TABLE_SUP = "abr_sup_teletools"
 
 # Column definitions for different file types
 
@@ -128,6 +135,21 @@ CNG_FILE_COLUMNS = {
 
 CNG_TABLE_COLUMNS = list(CNG_FILE_COLUMNS.keys()) + ["nome_arquivo"]
 
+SUP_FILE_COLUMNS = {
+    "nome_prestadora": "str",
+    "cnpj_prestadora": "str",
+    "numero_sup": "str",
+    "extensao": "str",
+    "uf": "str",
+    "cn": "str",
+    "codigo_municipio": "str",
+    "nome_municipio": "str",
+    "instituicao": "str",
+    "tipo": "str",
+    "status": "str",
+}
+
+SUP_TABLE_COLUMNS = list(SUP_FILE_COLUMNS.keys()) + ["nome_arquivo"]
 
 def _detect_file_type(file: Path) -> str:
     """Detect file type based on filename prefix.
@@ -146,10 +168,12 @@ def _detect_file_type(file: Path) -> str:
         return "SMP_SME"
     elif filename_upper.startswith("CNG"):
         return "CNG"
+    elif filename_upper.startswith("SUP"):
+        return "SUP"
     else:
         # Default to STFC if cannot determine
-        logger.warning(f"Cannot determine file type for {file.name}, assuming STFC")
-        return "STFC"
+        logger.warning(f"Cannot determine file type for {file.name}.")
+        return None
 
 
 def _get_file_config(file_type: str) -> dict:
@@ -178,6 +202,12 @@ def _get_file_config(file_type: str) -> dict:
             "columns": list(CNG_FILE_COLUMNS.keys()),
             "table": TABLE_CNG,
             "dtype": CNG_FILE_COLUMNS,
+        }
+    elif file_type == "SUP":
+        return {
+            "columns": list(SUP_FILE_COLUMNS.keys()),
+            "table": TABLE_SUP,
+            "dtype": SUP_FILE_COLUMNS,
         }
     else:
         raise ValueError(f"Unknown file type: {file_type}")
@@ -220,8 +250,8 @@ def _read_file_in_chunks(
         )
 
         for chunk in chunk_reader:
-            # Add servico column for non-CNG files
-            if file_type != "CNG":
+            # Add servico column for telephony files
+            if file_type in ("STFC", "SMP_SME"):
                 chunk["servico"] = file_type
             # Add filename column
             chunk["nome_arquivo"] = file.name
@@ -322,6 +352,50 @@ def _create_cng_table_if_not_exists(
         logger.error(f"Error creating table: {e}")
         raise
 
+def _create_sup_table_if_not_exists(
+    conn, table_name: str = TABLE_SUP, schema: str = IMPORT_SCHEMA
+) -> None:
+    """
+    Create SUP table if it doesn't exist.
+
+    Args:
+        conn: Database connection
+        table_name: Name of the table
+        schema: Table schema
+    
+    Raises:
+        Exception: If table creation fails
+    """
+    create_table_sql = f"""
+    CREATE TABLE IF NOT EXISTS {schema}.{table_name} (
+        nome_prestadora VARCHAR(200),
+        cnpj_prestadora VARCHAR(20),
+        numero_sup VARCHAR(20),
+        extensao VARCHAR(10),
+        uf VARCHAR(2),
+        cn VARCHAR(10),
+        codigo_municipio VARCHAR(10),
+        nome_municipio VARCHAR(200),
+        instituicao VARCHAR(100),
+        tipo VARCHAR(50),
+        status VARCHAR(50),
+        nome_arquivo VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Create indexes for performance
+    CREATE INDEX IF NOT EXISTS idx_{table_name}_numero_sup ON {schema}.{table_name}(numero_sup);
+    """
+
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(create_table_sql)
+        conn.commit()
+        logger.info(f"  Table {schema}.{table_name} created/verified successfully")
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error creating table: {e}")
+        raise
 
 def _bulk_insert_with_copy(
     conn, df: pd.DataFrame, file_type: str, schema: str = IMPORT_SCHEMA
@@ -360,8 +434,13 @@ def _bulk_insert_with_copy(
         copy_columns = ", ".join(CNG_TABLE_COLUMNS)
     elif file_type == "SMP_SME":
         copy_columns = ", ".join(SMP_SME_TABLE_COLUMNS)
-    else:  # STFC
+    elif file_type == "SUP":
+        copy_columns = ", ".join(SUP_TABLE_COLUMNS)
+    elif file_type == "STFC":
         copy_columns = ", ".join(STFC_TABLE_COLUMNS)
+    else:
+        logger.error(f"Unknown file type for COPY: {file_type}")
+        raise ValueError(f"Unknown file type for COPY: {file_type}")
     try:
         with conn.cursor() as cursor:
             # Use COPY FROM for ultra-fast insertion
@@ -422,11 +501,17 @@ def _import_single_file(
                     if file_type == "CNG":
                         _create_cng_table_if_not_exists(conn, TABLE_CNG, schema)
                         table_name = TABLE_CNG
-                    else:
+                    elif file_type == "SUP":
+                        _create_sup_table_if_not_exists(conn, TABLE_SUP, schema)
+                        table_name = TABLE_SUP
+                    elif file_type in ("STFC", "SMP_SME"):
                         _create_numeracao_table_if_not_exists(
                             conn, TABLE_NUMERACAO, schema
                         )
                         table_name = TABLE_NUMERACAO
+                    else:
+                        logger.warning(f"Unknown file type for {file.name}. Skipping file.")
+                        return 0
 
                     # Truncate table if requested (only on first chunk)
                     if truncate_table and chunk_count == 1:
@@ -556,7 +641,7 @@ def _import_multiple_files(
     return results
 
 
-def load_numbering_reports(
+def load_nsapn_files(
     input_path: str, schema: str = IMPORT_SCHEMA, truncate_table: bool = False
 ) -> dict:
     """
@@ -613,6 +698,21 @@ def load_numbering_reports(
     | codigo_nao_geografico  | Non-geographic code            |
     | status                 | Status                         |
 
+    SUP (Public Utility Services) - SUP format:
+    | Column              | Description                    |
+    |---------------------|--------------------------------|
+    | nome_prestadora     | Provider name                  |
+    | cnpj_prestadora     | Provider CNPJ                  |
+    | numero_sup          | SUP number                     |
+    | extensao            | Extension                      |
+    | uf                  | State                          |
+    | cn                  | CN code                        |
+    | codigo_municipio    | Municipality code              |
+    | nome_municipio      | Municipality name              |
+    | instituicao         | Institution                    |
+    | tipo                | Type                           |
+    | status              | Status                         |
+    
     Args:
         input_path: Path to the file or folder containing numbering files
         schema: Database schema name (default: "entrada")
@@ -628,7 +728,7 @@ def load_numbering_reports(
 
     Example:
         # Import single file
-        results = load_numbering_reports('/path/to/STFC_file.csv.gz')
+        results = load_numbering_reports('/path/to/numbering_file.zip')
 
         # Import directory with mixed file types
         results = load_numbering_reports('/path/to/numbering_files/')
@@ -663,4 +763,4 @@ if __name__ == "__main__":
     # Example usage for testing
 
     input_path = "/data/cdr/arquivos_auxiliares/abr/numeracao/nsapn/"
-    results = load_numbering_reports(input_path, truncate_table=True)
+    results = load_nsapn_files(input_path, truncate_table=True)
