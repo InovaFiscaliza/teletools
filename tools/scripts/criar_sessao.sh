@@ -20,8 +20,31 @@ then
 
     # Name first Pane and clear terminal
     tmux rename-window -t 0 'Editor'
-    tmux send-keys -t 'Editor' '/usr/local/bin/code -a $HOME tunnel --name $USER --cli-data-dir=/home/$USER/.vscode --install-extension ms-python.python --install-extension mechatroner.rainbow-csv --install-extension janisdd.vscode-edit-csv --install-extension ms-toolsai.jupyter --install-extension github.copilot --install-extension github.copilot-chat --install-extension gera2ld.markmap-vscode --install-extension yzhang.markdown-all-in-one --install-extension mutantdino.resourcemonitor --install-extension ms-vsliveshare.vsliveshare --install-extension ms-ceintl.vscode-language-pack-pt-br --install-extension charliermarsh.ruff' C-m
 
+    # Define the list of VSCode extensions to install
+    EXTENSIONS="
+        ms-python.python
+        mechatroner.rainbow-csv
+        janisdd.vscode-edit-csv
+        ms-toolsai.jupyter
+        github.copilot
+        github.copilot-chat
+        gera2ld.markmap-vscode
+        yzhang.markdown-all-in-one
+        mutantdino.resourcemonitor
+        ms-vsliveshare.vsliveshare
+        ms-ceintl.vscode-language-pack-pt-br
+        charliermarsh.ruff
+    "
+
+    # Build the install-extension arguments
+    EXT_ARGS=""
+    for ext in $EXTENSIONS; do
+        EXT_ARGS="$EXT_ARGS --install-extension $ext"
+    done
+
+    # Send the VSCode command to the tmux pane
+    tmux send-keys -t 'Editor' "/usr/local/bin/code -a \$HOME tunnel --name \$USER --cli-data-dir=/home/\$USER/.vscode \$EXT_ARGS" C-m
     # Split the window vertically to create a second pane
     tmux split-window -h -t $SESSION:0
 
