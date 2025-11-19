@@ -28,7 +28,7 @@ from io import StringIO
 from pathlib import Path
 
 import pandas as pd
-from teletools.database._database_config import get_db_connection
+from ._database_config import get_db_connection
 
 from teletools.utils import setup_logger
 
