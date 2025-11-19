@@ -1,10 +1,10 @@
-# Teletools database
+# Teletools CDR Stage Database
 
-Teletools database é um conjunto de arquivos para a construção de uma solução conteinerizada para execução de um banco de dados PostgreSQL customizado para o pré-processamento de dados para tratamento de arquivos CDR (Detalhes de Registros de Chamadas) de operadoras brasileiras. 
+Teletools CDR Stage Database é um conjunto de arquivos para a construção de uma solução conteinerizada para execução de um banco de dados PostgreSQL customizado para o pré-processamento de dados para tratamento de arquivos CDR (Detalhes de Registros de Chamadas) de operadoras brasileiras. 
 
 ## Sobre
 
-Teletools database constroi uma imagem customizada de um banco de dados PostgreSQL a partir da [imagem oficial Docker](https://hub.docker.com/_/postgres) com as extensões requeridas para processamento dos dados extraídos de diversas fontes.
+Teletools CDR Stage Database constroi uma imagem customizada de um banco de dados PostgreSQL a partir da [Imagem Oficial Docker do PostgreSQL](https://hub.docker.com/_/postgres) com as extensões requeridas para processamento dos dados extraídos de diversas fontes.
 
 Teletools database contém ainda uma versão web da ferramenta de adminstração para PostgreSQL [pgAdmin 4](https://hub.docker.com/r/dpage/pgadmin4).
 
@@ -80,17 +80,17 @@ docker compose up -d
 
 Após a configuração o banco de dados PostgreSQL pode ser acessado através do pgAdmin (web ou desktop) ou de outra ferramenta para gerenciamento de banco de dados.
 
-Para acessar através do pgAdmin web acesse o endereço http://<host_de_instalação>:5050 e utilize o e-mail e senha do pgAdmin informados no arquivo de configuração (`PGADMIN_DEFAULT_EMAIL` e `PGADMIN_DEFAULT_PASSWORD`)
+Para acessar através do pgAdmin web acesse o endereço `http://<host_de_instalação>:<porta_pg_admin>` e utilize o e-mail e senha do pgAdmin informados no arquivo de configuração (`PGADMIN_DEFAULT_EMAIL` e `PGADMIN_DEFAULT_PASSWORD`)
 
 Configure a conexão ao servidor PostgreSQL com os seguintes parâmetros:
 
-| Parâmetro            | Valor                |
-| -------------------- | ---------------------|
-| Host name/address    | <host_de_instalação> |
-| Port                 | 5432                 |
-| Maintenance database | `POSTGRES_DB`        |
-| Username             | `POSTGRES_USER`      |
-| Password             | `POSTGRES_PASSWORD`  |
+| Parâmetro            | Valor                  |
+| -------------------- | -----------------------|
+| Host name/address    | `<host_de_instalação>` |
+| Port                 | `<porta_postgres>`     |
+| Maintenance database | `POSTGRES_DB`          |
+| Username             | `POSTGRES_USER`        |
+| Password             | `POSTGRES_PASSWORD`    |
 
 
 ![pgAdmin Register - Server](../../images/postgre_connect.png "pgAdmin Register - Server")
@@ -154,7 +154,7 @@ Verifique os parâmetros listados e os ajuste, se necessário.
 |shared_buffers                 |Sets the number of shared memory buffers used by the server.                                      |2097152     |20GB          |
 |synchronous_commit             |Sets the current transaction's synchronization level.                                             |on          |local         |
 |temp_buffers                   |Sets the maximum number of temporary buffers used by each session.                                |1024        |4096          |
-|wal_level                      |Sets the level of information written to the WAL.                                                 |replica     |minimal       |
+|wal_level                      |Sets the level of information written to the WAL.                                                 |replica     |logical       |
 |work_mem                       |Sets the maximum memory to be used for query workspaces.                                          |4096        |2GB           |
 
 ### Configuração do banco de dado CDR
@@ -390,9 +390,9 @@ Criar usuário super (administrador do banco de dados)
 -- =======================================
 DO $$
 DECLARE
-    user_name TEXT := 'cdr.service.super';
+    user_name TEXT := 'super_usuario_aqui';
     user_password TEXT := 'senha_do_usuario_aqui';  -- Defina a senha aqui se necessário
-    user_description TEXT := 'Usuário de serviço para acesso ao banco de dados CDR - Superusuário';
+    user_description TEXT := 'Usuário para acesso ao banco de dados CDR - Superusuário';
 BEGIN
     IF NOT role_exists(user_name) THEN
         IF user_password IS NOT NULL THEN
@@ -425,9 +425,9 @@ Criar usuário para gravar (pode consultar, incluir e excluir objetos)
 -- =======================================
 DO $$
 DECLARE
-    user_name TEXT := 'cdr.service.gravar';
+    user_name TEXT := 'usuario_gravar_aqui';
     user_password TEXT := 'senha_do_usuario_aqui';  -- Defina a senha aqui se necessário
-    user_description TEXT := 'Usuário de serviço para acesso ao banco de dados CDR - Gravar';
+    user_description TEXT := 'Usuário para acesso ao banco de dados CDR - Gravar';
 BEGIN
     IF NOT role_exists(user_name) THEN
         IF user_password IS NOT NULL THEN
@@ -461,9 +461,9 @@ Criar usário de leitura (pode apenas fazer consultas)
 -- =======================================
 DO $$
 DECLARE
-    user_name TEXT := 'cdr.service.ler';
+    user_name TEXT := 'usuario_ler_aqui';
     user_password TEXT := NULL;  -- Defina a senha aqui se necessário
-    user_description TEXT := 'Usuário de serviço para acesso ao banco de dados CDR - Ler';
+    user_description TEXT := 'Usuário para acesso ao banco de dados CDR - Ler';
 BEGIN
     IF NOT role_exists(user_name) THEN
         IF user_password IS NOT NULL THEN
