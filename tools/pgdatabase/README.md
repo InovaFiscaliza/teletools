@@ -56,7 +56,7 @@ sudo chmod -R g+s /data/postgresql/pgadmin
 Crie o arquivo de variáveis de ambiente (`.env`)
 ```
 POSTGRES_USER=<postgres_admin_username>
-POSTGRES_PASSWORD=<postgres_admin_username>
+POSTGRES_PASSWORD=<postgres_admin_password>
 POSTGRES_DB=<postgres_default_database>
 PGADMIN_DEFAULT_EMAIL=<pgadmin_admin_user_email>
 PGADMIN_DEFAULT_PASSWORD=<pgadmin_admin_user_password>
@@ -461,9 +461,9 @@ Criar usário de leitura (pode apenas fazer consultas)
 -- =======================================
 DO $$
 DECLARE
-    user_name TEXT := 'cdr.service.gravar';
+    user_name TEXT := 'cdr.service.ler';
     user_password TEXT := NULL;  -- Defina a senha aqui se necessário
-    user_description TEXT := 'Usuário de serviço para acesso ao banco de dados CDR - Gravar';
+    user_description TEXT := 'Usuário de serviço para acesso ao banco de dados CDR - Ler';
 BEGIN
     IF NOT role_exists(user_name) THEN
         IF user_password IS NOT NULL THEN

@@ -152,7 +152,7 @@ $
 3. **Sem paralelização:** Processa arquivos sequencialmente
 4. **PostgreSQL apenas:** Não suporta outros bancos de dados nativamente
 
-h
+
 ## Contribuindo
 
 Para contribuir com melhorias neste módulo:
