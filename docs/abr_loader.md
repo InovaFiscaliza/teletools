@@ -2,9 +2,9 @@
 
 ## Visão Geral
 
-O módulo `abr_loader.py` fornece funcionalidade para importar dados de portabilidade numérica e dos planos de numeração de telefonia brasileira provenientes de relatórios dos sistemas PIP, Portal de Informações da Portabilidade e NSAPN, Novo Sistema de Administração dos Planos de Numeração, respectivamente. 
+O módulo de importação de dados da ABR Telecom (`abr_loader`) fornece funcionalidade para importar dados de portabilidade numérica e dos planos de numeração de telefonia brasileira provenientes de relatórios dos sistemas PIP, Portal de Informações da Portabilidade e NSAPN, Novo Sistema de Administração dos Planos de Numeração, respectivamente. 
 
-O módulo processa arquivos com informações de portabilidade e numeração e os importa para um banco de dados PostgreSQL com desempenho otimizado através de processamento em lotes e operações de inserção em massa.
+O módulo processa arquivos com histórico de portabilidade e atribuição de faixas de numeração e os importa para um banco de dados PostgreSQL com desempenho otimizado através de processamento em lotes e operações de inserção em massa.
 
 ## Características Principais
 
@@ -53,15 +53,15 @@ Para obter os arquivos para importação no PIP execute e exporte o relatório "
 
 **Parâmetros para extração do relatório de BP Concluído**
 
-![Layout de saída do PIP](../images/pip_bp_concluido.png)
+![Layout de saída do PIP](https://raw.githubusercontent.com/InovaFiscaliza/teletools/0daa0d46077d5164df1f3c62e7061fb821bd4546/images/pip_bp_concluido.png)
 
 **Layout de saída**
 
-![Layout de saída do PIP](../images/pip_layout_saida.png)
+![Layout de saída do PIP](https://raw.githubusercontent.com/InovaFiscaliza/teletools/0daa0d46077d5164df1f3c62e7061fb821bd4546/images/pip_layout_saida.png)
 
 
 
-## Uso Básico
+### Uso Básico
 
 ```bash
 Usage: abr_loader load-pip [OPTIONS] INPUT_PATH TABLE_NAME SCHEMA_NAME
@@ -145,13 +145,14 @@ $ source repositorios/teletools/.venv/bin/activate
 $
 ```
 
-## Limitações Conhecidas
+### Limitações Conhecidas
 
 1. **Formato de arquivo fixo:** Requer formato CSV específico da ABR
 2. **Encoding:** Assume UTF-8 (pode requerer ajuste para outros encodings)
 3. **Sem paralelização:** Processa arquivos sequencialmente
 4. **PostgreSQL apenas:** Não suporta outros bancos de dados nativamente
 
+## Importação do Plano de Numeração
 
 ## Contribuindo
 
