@@ -73,7 +73,7 @@ def inspect_file(file: Union[str, Path], nrows: int = 5, encoding: str = "utf8")
         print(f"Error reading file '{file}': {e}")
 
 # Advanced logging configuration for console and file output
-def setup_logger():
+def setup_logger(log_file="log.log") -> logging.Logger:
     """Configure logger for console display and file logging.
 
     Returns:
@@ -97,7 +97,7 @@ def setup_logger():
     console_handler.setFormatter(formatter)
 
     # File handler
-    file_handler = logging.FileHandler("abr_numeracao.log", encoding="utf-8")
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
 

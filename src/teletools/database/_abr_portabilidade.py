@@ -33,7 +33,7 @@ from teletools.database._database_config import get_db_connection
 from teletools.utils import setup_logger
 
 # Configure logger
-logger = setup_logger()
+logger = setup_logger("abr_portabilidade.log")
 
 # Performance settings
 CHUNK_SIZE = 100000  # Process in chunks of 100k rows
