@@ -278,7 +278,7 @@ def normalize_number_pair(number_a, number_b, national_destination_code=""):
     normalized_number_a, is_number_a_valid = normalize_number(number_a)
 
     if is_number_a_valid and len(normalized_number_a) in (10, 11):
-        if national_destination_code=="":
+        if not national_destination_code:
             national_destination_code = normalized_number_a[:2]
     else:
         national_destination_code = ""
