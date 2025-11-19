@@ -14,6 +14,7 @@
 <p>
 Teletools é um conjunto de bibliotecas e ferramentas de apoio para pré-processamento e análise de arquivos CDR (Detalhes de Registros de Chamadas) de operadoras brasileiras.</p>
 
+
 ## Bibliotecas e ferramentas
 
 | Biblioteca/Ferramenta | Descrição |
@@ -33,8 +34,22 @@ As bilbiotecas e ferramentas foram desenvolvidas para serem executadas em um com
 - Gerenciador de pacotes e projetos Python [UV](https://docs.astral.sh/uv/)
 - [GnuPG]((https://www.gnupg.org/download/index.html)) ou [Gpg4win](https://gpg4win.org/download.html)
 
-
 <!-- REFERENCES -->
+
+## Fontes de Dados Oficiais
+
+Todos os arquivos de dados da ABR Telecom utilizados por esta biblioteca devem ser baixados do portal oficial:
+
+| Tipo de Serviço | Descrição | URL de Download |
+| --- | --- | --- |
+| **CNG** | Código Nacional de Gratuidade | https://easi.abrtelecom.com.br/nsapn/#/public/files/download/cng |
+| **SME** | Serviço Móvel Especializado | https://easi.abrtelecom.com.br/nsapn/#/public/files/download/sme |
+| **SMP** | Serviço Móvel Pessoal | https://easi.abrtelecom.com.br/nsapn/#/public/files/download/smp |
+| **STFC** | Serviço Telefônico Fixo Comutado | https://easi.abrtelecom.com.br/nsapn/#/public/files/download/stfc |
+| **STFC-FATB** | STFC fora da ATB | https://easi.abrtelecom.com.br/nsapn/#/public/files/download/stfc-fatb |
+
+> **Importante**: Estes arquivos contêm dados oficiais de numeração de telecomunicações brasileiras e são atualizados regularmente pela ANATEL.
+
 ## Referências
 
 * [UV Short Guide](https://www.saaspegasus.com/guides/uv-deep-dive/)
