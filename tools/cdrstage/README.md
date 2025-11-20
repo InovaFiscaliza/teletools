@@ -20,38 +20,50 @@ Clone o repositório e construa a imagem customizada:
 
 ```bash
 # Clonar o repositório
-git clone https://github.com/InovaFiscaliza/teletools
-cd teletools/pgdatabase
+$ git clone https://github.com/InovaFiscaliza/teletools
+$ cd teletools/tools/cdrstage
 
 # Construir a imagem customizada
-docker build -t postgrescdr .
+$ docker build -t postgrescdr .
 ```
 
 Crie os usuários para os serviços
 ```bash
 # Criar o grupo postgres com GID 999
-sudo groupadd -g 999 postgres
+$ sudo groupadd -g 999 postgres
 # Criar o usuário postgres com UID 999
-sudo useradd -u 999 postgres -g postgres
+$ sudo useradd -u 999 postgres -g postgres
 
 # Criar o grupo pgadmin com GID 5050
-sudo groupadd -g 5050 pgadmin
+$ sudo groupadd -g 5050 pgadmin
 # Criar o usuário pgadmin com UID 999
-sudo useradd -u 5050 pgadmin -g pgadmin
+$ sudo useradd -u 5050 pgadmin -g pgadmin
 ```
 ⚠️ **Atenção** os usuários e grupos devem ser criados com os UID e GID especificados, caso contrário os serviços dos conteineres não persistirão os dados.
 
 Crie dos diretórios de dados e ajuste as permissões
 ```bash
 # Criar os diretórios
-mkdir -p /data/postgresql/data
-mkdir -p /data/postgresql/pgadmin
+$ mkdir -p /data/postgresql/data
+$ mkdir -p /data/postgresql/pgadmin
 
 # Configurar proprietário e permissões
-sudo chown -R postgres /data/postgresql/data
-sudo chown -R pgadmin /data/postgresql/pgadmin
-sudo chmod -R g+s /data/postgresql/data
-sudo chmod -R g+s /data/postgresql/pgadmin
+$ sudo chown -R postgres /data/postgresql/data
+$ sudo chown -R pgadmin /data/postgresql/pgadmin
+$ sudo chmod -R g+s /data/postgresql/data
+$ sudo chmod -R g+s /data/postgresql/pgadmin
+```
+⚠️ **Atenção** caso queira utilitizar outros diretórios para armazenamento dos dados do PostgreSQL e pgAdmin, edite o arquivo `teletools/cdrstage/docker-compose.yaml` para apontar para os diretórios corretos.
+```yaml
+# Utilizar o diretório /opt/postgre para armazenar os dados
+services:
+  postgres:    
+    volumes:
+      - /opt/postgresql/data:/var/lib/postgresql/18/docker
+...
+  pgadmin:
+    volumes:
+      - /opt/postgresql/pgadmin:/var/lib/pgadmin
 ```
 Crie o arquivo de variáveis de ambiente (`.env`)
 ```
