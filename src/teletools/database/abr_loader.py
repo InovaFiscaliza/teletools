@@ -41,13 +41,14 @@ Data Sources:
     - Numbering Plan: https://easi.abrtelecom.com.br/nsapn/#/public/files/download/
 """
 
-from typing import Annotated
 import sys
+from typing import Annotated
 
 import typer
 
-from ._abr_portabilidade import load_pip_reports
 from ._abr_numeracao import load_nsapn_files
+from ._abr_portabilidade import load_pip_reports
+from ._database_config import validate_connection
 
 # Initialize Typer app with enhanced configuration
 app = typer.Typer(
@@ -228,6 +229,67 @@ def load_nsapn(
     load_nsapn_files(
         input_path=input_path, schema=schema, truncate_table=truncate_table
     )
+
+
+@app.command(name="test-connection")
+def test_connection() -> None:
+    """Test database connection and validate configuration.
+
+    This command verifies that the database connection is properly configured
+    and can be established successfully. It checks:
+    - Environment variables are properly set (.env file)
+    - Database server is reachable
+    - Credentials are valid
+    - Connection can be established
+
+    The test performs a simple query to verify full connectivity.
+
+    Returns:
+        None: Outputs connection status to console
+
+    Raises:
+        typer.Exit: On connection failure with detailed error message
+
+    Examples:
+        Test database connection:
+        $ abr_loader test-connection
+
+        Use before running imports to verify setup:
+        $ abr_loader test-connection && abr_loader load-pip data.csv.gz
+    """
+    typer.echo("🔍 Testing database connection...")
+    typer.echo("")
+
+    try:
+        if validate_connection():
+            typer.echo("✅ Database connection successful!")
+            typer.echo("✓ Configuration is valid")
+            typer.echo("✓ Server is reachable")
+            typer.echo("✓ Credentials are correct")
+            typer.echo("")
+            typer.echo("💡 You can now proceed with data import operations.")
+        else:
+            typer.echo("❌ Database connection failed!", err=True)
+            typer.echo("", err=True)
+            typer.echo("🔧 Troubleshooting steps:", err=True)
+            typer.echo("  1. Check if .env file exists and is properly configured", err=True)
+            typer.echo("  2. Verify database server is running", err=True)
+            typer.echo("  3. Confirm credentials are correct", err=True)
+            typer.echo("  4. Check network connectivity to database server", err=True)
+            typer.echo("", err=True)
+            typer.echo("📖 See .env.example for configuration template", err=True)
+            raise typer.Exit(code=1)
+
+    except ValueError as e:
+        typer.echo(f"❌ Configuration Error: {e}", err=True)
+        typer.echo("", err=True)
+        typer.echo("💡 Hint: Create .env file from .env.example template", err=True)
+        typer.echo("   cp .env.example .env", err=True)
+        typer.echo("   # Edit .env with your database credentials", err=True)
+        raise typer.Exit(code=1)
+    except Exception as e:
+        typer.echo(f"❌ Connection Error: {e}", err=True)
+        raise typer.Exit(code=1)
 
 
 def main() -> None:
