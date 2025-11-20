@@ -1,9 +1,13 @@
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/InovaFiscaliza/teletools)
+
 <details>
-    <summary>Table of Contents</summary>
+    <summary>Sumário</summary>
     <ol>
-        <li><a href="#teletools">Teletools</a></li>
+        <li><a href="#-teletools">Teletools</a></li>
         <li><a href="#bibliotecas-e-ferramentas">Bibliotecas e ferramentas</a></li>
         <li><a href="#instalação">Instalação</a></li>
+        <li><a href="#uso-básico">Uso básico</a></li>
+        <li><a href="#fontes-de-dados">Fontes de dados</a></li>
         <li><a href="#referências">Referências</a></li>
     </ol>
 </details>
