@@ -64,69 +64,73 @@ Para obter os arquivos para importação no PIP execute e exporte o relatório "
 ### Uso Básico
 
 ```bash
-Usage: abr_loader load-pip [OPTIONS] INPUT_PATH TABLE_NAME SCHEMA_NAME
+# Ative o ambiente teletools
+$ source ~/teletools
+
+# Execute o cliente abr_loader
+(teletools) $ abr_loader load-pip --help
+
+ Usage: abr_loader load-pip [OPTIONS] INPUT_PATH TABLE_NAME SCHEMA_NAME
 
  Import ABR portability data into PostgreSQL database.
 
- This command processes Brazilian phone number portability reports from ABR Telecom's PIP system. The input files should be in
- CSV format (*.csv.gz) with specific column structure defined by ABR standards.
- The import process includes: - Automatic table creation with optimized schema - Chunked processing for memory efficiency - Bulk
- insertions using PostgreSQL COPY FROM - Comprehensive progress tracking and error handling - Data type optimization and
- validation
+ This command processes Brazilian phone number portability reports from ABR Telecom's PIP
+ system. The input files should be in CSV format (*.csv.gz) with specific column structure
+ defined by ABR standards.
+ The import process includes: - Automatic table creation with optimized schema - Chunked
+ processing for memory efficiency - Bulk insertions using PostgreSQL COPY FROM -
+ Comprehensive progress tracking and error handling - Data type optimization and validation
+ Args:     input_path: Path to CSV file or directory containing CSV files     table_name:
+ Target database table (created if doesn't exist)     schema: Target database schema (must
+ already exist)     truncate_table: Whether to clear existing data before import
+ rebuild_database: Whether to rebuild the entire database before import
+ Returns:     None: Results are logged to console and log file
+ Raises:     typer.Exit: On file not found, database connection errors, or import failures
+ Examples:     Import single file with default settings:     $ abr_loader load-portability
+ data.csv.gz
+ Import directory to custom table:     $ abr_loader load-portability /data/ my_table
+ my_schema
+ Append data without truncating:     $ abr_loader load-portability /data/
+ --no-truncate-table
 
- Args:     
-    input_path: Path to CSV file or directory containing CSV files     
-    table_name: Target database table (created if doesn't exist)     
-    schema: Target database schema (must already exist)     
-    truncate_table: Whether to clear existing data before import
-    rebuild_database: Whether to rebuild the entire database before import
-
- Returns:     
-    None: Results are logged to console and log file
-
- Raises:     
-    typer.Exit: On file not found, database connection errors, or import failures
-
- Examples:     
-    Import single file with default settings:     
-        $ abr_loader load-portability data.csv.gz
-    Import directory to custom table:     
-        $ abr_loader load-portability /data/ my_table my_schema
-    Append data without truncating:     
-        $ abr_loader load-portability /data/ --no-truncate-table
-
-╭─ Arguments ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ *    input_path      TEXT         Path to input file or directory. If directory provided, all *.csv.gz files will be processed │
-│                                   recursively. Supports single files or batch processing.                                      │
-│                                   [required]                                                                                   │
-│      table_name      TEXT         Database table name for data storage. Table will be created automatically if it doesn't      │
-│                                   exist.                                                                                       │
-│                                   [default: abr_portabilidade]                                                                 │
-│      schema          SCHEMA_NAME  Database schema name for table organization. Schema must exist in the target database.       │
-│                                   [default: entrada]                                                                           │
-╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Options ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ --truncate-table      --no-truncate-table        Truncate table before import. When enabled, existing data will be deleted     │
-│                                                  before import. Use --no-truncate-table to append to existing data.            │
-│                                                  [default: truncate-table]                                                     │
-│ --rebuild-database    --no-rebuild-database      Rebuild database entire portability database. When enabled, existing data     │
-│                                                  will be deleted before import. Use --no-rebuild-database to append to         │
-│                                                  existing data.                                                                │
-│                                                  [default: no-rebuild-database]                                                │
-│ --help                                           Show this message and exit.                                                   │
-╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Arguments ───────────────────────────────────────────────────────────────────────────────╮
+│ *    input_path      TEXT         Path to input file or directory. If directory provided, │
+│                                   all *.csv.gz files will be processed recursively.       │
+│                                   Supports single files or batch processing.              │
+│                                   [required]                                              │
+│      table_name      TEXT         Database table name for data storage. Table will be     │
+│                                   created automatically if it doesn't exist.              │
+│                                   [default: abr_portabilidade]                            │
+│      schema          SCHEMA_NAME  Database schema name for table organization. Schema     │
+│                                   must exist in the target database.                      │
+│                                   [default: entrada]                                      │
+╰───────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --truncate-table      --no-truncate-table        Truncate table before import. When       │
+│                                                  enabled, existing data will be deleted   │
+│                                                  before import. Use --no-truncate-table   │
+│                                                  to append to existing data.              │
+│                                                  [default: truncate-table]                │
+│ --rebuild-database    --no-rebuild-database      Rebuild database entire portability      │
+│                                                  database. When enabled, existing data    │
+│                                                  will be deleted before import. Use       │
+│                                                  --no-rebuild-database to append to       │
+│                                                  existing data.                           │
+│                                                  [default: no-rebuild-database]           │
+│ --help                                           Show this message and exit.              │
+╰───────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ### Importar um único arquivo
 
 ```bash
-# Ativar o ambiente virtual Python
+# Ative o ambiente teletools
 $ source repositorios/teletools/.venv/bin/activate
 
-# Importar um arquivo
+# Importe um arquivo
 (teletools) $ abr_loader load-pip /data/cdr/arquivos_auxiliares/abr/portabilidade/pip/relatorios_mensais/relatorio_bilhetes_portabilidade_pip_202502.csv.gz
 
-# Desativar o ambiente virtual Python
+# Desative o ambiente virtual Python
 (teletools) $ deactivate
 $
 ```
@@ -134,13 +138,13 @@ $
 ### Importar todos os arquivos de um diretório
 
 ```bash
-# Ativar o ambiente virtual Python
+# Ative o ambiente teletools
 $ source repositorios/teletools/.venv/bin/activate
 
-# Importar um diretório que contém arquivos .csv.gz
+# Importe vários arquivos .csv.gz contidos em um diretório
 (teletools) $ abr_loader load-pip /data/cdr/arquivos_auxiliares/abr/portabilidade/pip/
 
-# Desativar o ambiente virtual Python
+# Desative o ambiente virtual Python
 (teletools) $ deactivate
 $
 ```
