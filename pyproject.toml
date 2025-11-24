@@ -1,6 +1,6 @@
 [project]
 name = "teletools"
-version = "0.1.0"
+version = "0.0.1"
 description = "Python Utility Functions Library for Call Details Records ( CDRs ) from Brazilian Telecommunications Carriers"
 readme = "README.md"
 authors = [
@@ -30,6 +30,12 @@ build-backend = "hatchling.build"
 dev = [
     "pre-commit>=4.3.0",
 ]
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple/"
+publish-url = "https://upload.pypi.org/legacy/"
+default = true
 
 [[tool.uv.index]]
 name = "testpypi"
