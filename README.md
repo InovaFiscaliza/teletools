@@ -141,17 +141,17 @@ $ source ~/teletools
 # Execute o cliente cipher_cli
 (teletools) $ cipher_cli --help
 
- Usage: cipher_cli [OPTIONS] COMMAND [ARGS]...
+  Usage: cipher_cli [OPTIONS] COMMAND [ARGS]...
 
  File encryption and decryption CLI tool using RSA keys.
 
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --help          Show this message and exit.                                  │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Commands ───────────────────────────────────────────────────────────────────╮
-│ encrypt   Encrypt files using RSA public key.                                │
-│ decrypt   Decrypt files using RSA private key.                               │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────────────────╮
+│ encrypt   Encrypt files using RSA public key.                                            │
+│ decrypt   Decrypt files using RSA private key.                                           │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ### Cliente de importação de arquivos da ABR Telecom
@@ -165,17 +165,16 @@ $ source ~/teletools
 
  Usage: abr_loader [OPTIONS] COMMAND [ARGS]...
 
- ABR Database Loader - Import Brazilian telecom portability and numbering plan
- data.
+ ABR Database Loader - Import Brazilian telecom portability and numbering plan data.
 
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --help          Show this message and exit.                                  │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Commands ───────────────────────────────────────────────────────────────────╮
-│ load-pip          Import ABR portability data into PostgreSQL database.      │
-│ load-nsapn        Import ABR numbering plan data into PostgreSQL database.   │
-│ test-connection   Test database connection and validate configuration.       │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────────────────╮
+│ load-pip          Import ABR portability data into PostgreSQL database.                  │
+│ load-nsapn        Import ABR numbering plan data into PostgreSQL database.               │
+│ test-connection   Test database connection and validate configuration.                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 <!-- REFERENCES -->
