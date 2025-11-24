@@ -49,6 +49,26 @@ As bibliotecas e ferramentas foram desenvolvidas para serem executadas em um com
 - Variáveis de ambiente ou arquivo `.vev` com informações de conexão ao banco de dados PostgreSQL.
 - [GnuPG]((https://www.gnupg.org/download/index.html)) ou [Gpg4win](https://gpg4win.org/download.html)
 
+### Procedimento para instalação:
+
+Em um projeto Pyhton gerenciado pelo UV
+```bash
+$ uv add teletools
+```
+Em um ambiente virtural Python gerenciado pelo UV
+```bash
+# Crie o ambiente virtrual
+$ uv venv ~/teletools --python=3.13
+
+# Ative o ambiente virtrual
+$ source ~/teletools/bin/activate
+
+# Instale teletools
+(teletools) $ uv pip install teletools
+```
+💡Utilize essa opção para utilizar os clientes de linha de comando
+
+
 ### Configuração das variáveis de ambiente
 
 Esta biblioteca requer credenciais de conexão com o banco de dados para funcionar. Você precisará configurar variáveis de ambiente contendo tais informações:
@@ -110,24 +130,6 @@ $ export TELETOOLS_DB_PASSWORD="senha_do_usuario_do_banco_de_dados"
 $ source ~/.bashrc
 ```
 
-### Bibliotecas para desenvolvimento
-
-```bash
-# Adicione teletools ao projeto em desenvolvimento
-$ uv add teletools
-```
-### Ferramentas de linha de comando
-
-```bash
-# Crie um ambiente virtual uv
-$ uv venv ~/teletools --python 3.13
-
-# Ative o ambiente
-$ source ~/teletools/bin/activate
-
-# Instale o teletools
-(teletools) $ uv pip install teletools
-```
 ## Uso básico
 
 ### Cliente de criptografia
