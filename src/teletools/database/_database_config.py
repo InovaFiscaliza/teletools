@@ -175,3 +175,29 @@ def get_db_connection_pool():
     # TODO: Implement actual connection pooling with psycopg2.pool
     with get_db_connection() as conn:
         yield conn
+
+def check_table_exists(schema: str, table_name: str) -> bool:
+    """Check if a table exists in the database.
+
+    Args:
+        table_name: Name of the table to check
+    
+    Returns:
+        True if table exists, False otherwise
+    """
+    query = """
+    SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = %s AND table_name = %s
+    );
+    """
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(query, (schema, table_name))
+                exists = cursor.fetchone()[0]
+                return exists
+    except Exception as e:
+        print(f"Error checking table existence: {e}")
+        return False
