@@ -254,7 +254,7 @@ def _import_single_file(
     file: Path,
     table_name: str = IMPORT_TABLE,
     schema: str = IMPORT_SCHEMA,
-    truncate_table: bool = False,
+    truncate_table: bool = True,
 ) -> int:
     """
     Import a single portability file into the database.
@@ -324,11 +324,11 @@ def _import_single_file(
         return total_rows
 
 
-def _import_multiple_files(
+def _import_pip_files(
     file_list: list[Path],
     table_name: str = IMPORT_TABLE,
     schema: str = IMPORT_SCHEMA,
-    truncate_table: bool = False,
+    truncate_table: bool = True,
 ) -> dict:
     """
     Process multiple portability files sequentially.
@@ -471,13 +471,96 @@ def load_pip_reports(
     else:
         logger.error(f"Invalid path: {input_path}")
         return {}
-    
-    if rebuild_database:
-        raise NotImplementedError("Rebuild database functionality is not implemented yet.")
 
-    return _import_multiple_files(
+    _ = _import_pip_files(
         files_to_import,
         table_name=table_name,
         schema=schema,
         truncate_table=truncate_table,
     )
+
+    if rebuild_database:
+        _create_tb_portabilidade_historico()
+
+    if not check_table_exists("public", "tb_portabilidade_historico"):
+        _create_tb_portabilidade_historico()
+        # if table was just created, we need to create indexes as well
+        rebuild_database = True
+
+    _update_tb_portabilidade_historico()
+
+    if rebuild_database:
+        _create_tb_portabilidade_historico_indexes()
+
+
+# function will be called if rebuild_database is True
+def _create_tb_portabilidade_historico() -> None:
+    """
+    Create the tb_portabilidade_historico table if it does not exist.
+
+    Args:
+        conn: Database connection
+
+    """
+    with get_db_connection() as conn:
+        try:
+            logger.info("Creating tb_portabilidade_historico table...")
+            conn.cursor().execute(CREATE_TB_PORTABILIDADE_HISTORICO)
+            conn.commit()
+            logger.info(
+                "Table tb_portabilidade_historico created/verified successfully"
+            )
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error creating tb_portabilidade_historico table: {e}")
+            raise
+
+
+def _create_tb_portabilidade_historico_indexes() -> None:
+    """
+    Create indexes for the tb_portabilidade_historico table.
+
+    Args:
+        conn: Database connection
+    """
+
+    with get_db_connection() as conn:
+        try:
+            logger.info("Creating indexes for tb_portabilidade_historico table...")
+            conn.cursor().execute(CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES)
+            conn.commit()
+            logger.info("Indexes for tb_portabilidade_historico created successfully")
+        except Exception as e:
+            conn.rollback()
+            logger.error(
+                f"Error creating indexes for tb_portabilidade_historico table: {e}"
+            )
+            raise
+
+
+def _update_tb_portabilidade_historico(
+    schema=IMPORT_SCHEMA, table_name=IMPORT_TABLE
+) -> None:
+    """
+    Update the tb_portabilidade_historico table with new records from the
+    abr_portabilidade table.
+
+    Args:
+        conn: Database connection
+        table_name: Source table name
+        schema: Source schema
+    """
+    with get_db_connection() as conn:
+        try:
+            logger.info("Updating tb_portabilidade_historico table...")
+            conn.cursor().execute(
+                UPDATE_TB_PORTABILIDADE_HISTORICO.format(
+                    schema=schema, table_name=table_name
+                )
+            )
+            conn.commit()
+            logger.info("Table tb_portabilidade_historico updated successfully")
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error updating tb_portabilidade_historico table: {e}")
+            raise
