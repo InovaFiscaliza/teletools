@@ -28,19 +28,28 @@ from io import StringIO
 from pathlib import Path
 
 import pandas as pd
-from teletools.database._database_config import get_db_connection
 
 from teletools.utils import setup_logger
+
+from ._database_config import get_db_connection, check_table_exists
+from ._abr_portabilidade_sql_queries import (
+    DROP_TB_PORTABILIDADE_HISTORICO_INDEXES,
+    IMPORT_SCHEMA,
+    IMPORT_TABLE,
+    CREATE_IMPORT_TABLE,
+    COPY_TO_IMPORT_TABLE,
+    CREATE_TB_PORTABILIDADE_HISTORICO,
+    CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES,
+    TARGET_SCHEMA,
+    TB_PORTABILIDADE_HISTORICO,
+    UPDATE_TB_PORTABILIDADE_HISTORICO,
+)
 
 # Configure logger
 logger = setup_logger("abr_portabilidade.log")
 
 # Performance settings
 CHUNK_SIZE = 100000  # Process in chunks of 100k rows
-
-# Table and schema names
-IMPORT_SCHEMA = "entrada"
-IMPORT_TABLE = "abr_portabilidade"
 
 
 def _read_file_in_chunks(
@@ -143,64 +152,36 @@ def _process_chunk(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _create_table_if_not_exists(
-    conn, table_name: str = IMPORT_TABLE, schema: str = IMPORT_SCHEMA
-) -> None:
+def _create_import_table_if_not_exists(conn) -> None:
     """
     Create optimized table if it doesn't exist.
 
     Args:
         conn: Database connection
-        table_name: Name of the table
-        schema: Table schema
-
     Raises:
         Exception: If table creation fails
-    """
-    create_table_sql = f"""
-    CREATE TABLE IF NOT EXISTS {schema}.{table_name} (
-        tipo_registro INT8,
-        numero_bp INT8 NOT NULL,
-        tn_inicial INT8 NOT NULL,
-        cod_receptora INT2,
-        nome_receptora VARCHAR(100),
-        cod_doadora INT2,
-        nome_doadora VARCHAR(100),
-        data_agendamento TIMESTAMP,
-        cod_status INT2,
-        status VARCHAR(50),
-        ind_portar_origem INT2,
-        nome_arquivo VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    -- Create indexes for performance
-    CREATE INDEX IF NOT EXISTS idx_{table_name}_tn_inicial ON {schema}.{table_name}(tn_inicial);
-    CREATE INDEX IF NOT EXISTS idx_{table_name}_data_agendamento ON {schema}.{table_name}(data_agendamento);
     """
 
     try:
         with conn.cursor() as cursor:
-            cursor.execute(create_table_sql)
+            cursor.execute(CREATE_IMPORT_TABLE)
         conn.commit()
-        logger.info(f"  Table {schema}.{table_name} created/verified successfully")
+        logger.info(
+            f"  Table {IMPORT_SCHEMA}.{IMPORT_TABLE} created/verified successfully"
+        )
     except Exception as e:
         conn.rollback()
         logger.error(f"Error creating table: {e}")
         raise
 
 
-def _bulk_insert_with_copy(
-    conn, df: pd.DataFrame, table_name: str = IMPORT_TABLE, schema: str = IMPORT_SCHEMA
-) -> None:
+def _bulk_insert_with_copy(conn, df: pd.DataFrame) -> None:
     """
     Perform bulk insert using PostgreSQL COPY FROM for maximum performance.
 
     Args:
         conn: Database connection
         df: DataFrame to insert
-        table_name: Target table name
-        schema: Target schema
 
     Raises:
         Exception: If bulk insert fails
@@ -224,22 +205,7 @@ def _bulk_insert_with_copy(
         with conn.cursor() as cursor:
             # Use COPY FROM for ultra-fast insertion
             cursor.copy_expert(
-                f"""
-                COPY {schema}.{table_name} (
-                    tipo_registro, 
-                    numero_bp, 
-                    tn_inicial, 
-                    cod_receptora,
-                    nome_receptora, 
-                    cod_doadora,
-                    nome_doadora, 
-                    data_agendamento,
-                    cod_status, 
-                    status, 
-                    ind_portar_origem, 
-                    nome_arquivo
-                ) FROM STDIN WITH CSV DELIMITER E'\\t' NULL '\\N'
-                """,
+                COPY_TO_IMPORT_TABLE,
                 output,
             )
         conn.commit()
@@ -250,10 +216,8 @@ def _bulk_insert_with_copy(
         raise
 
 
-def _import_single_file(
+def _import_single_pip_report_file(
     file: Path,
-    table_name: str = IMPORT_TABLE,
-    schema: str = IMPORT_SCHEMA,
     truncate_table: bool = True,
 ) -> int:
     """
@@ -261,8 +225,6 @@ def _import_single_file(
 
     Args:
         file: Path to the file to import
-        table_name: Target table name
-        schema: Target schema
         truncate_table: Whether to truncate table before import
 
     Returns:
@@ -279,13 +241,13 @@ def _import_single_file(
     try:
         with get_db_connection() as conn:
             # Create table if necessary
-            _create_table_if_not_exists(conn, table_name, schema)
+            _create_import_table_if_not_exists(conn)
             # Truncate table if requested
             if truncate_table:
                 with conn.cursor() as cursor:
-                    cursor.execute(f"TRUNCATE TABLE {schema}.{table_name}")
+                    cursor.execute(f"TRUNCATE TABLE {IMPORT_SCHEMA}.{IMPORT_TABLE}")
                     conn.commit()
-                    logger.info("  Table truncated")
+                    logger.info(f"  Table {IMPORT_SCHEMA}.{IMPORT_TABLE} truncated")
 
             # Process file in chunks
             chunk_count = 0
@@ -294,14 +256,14 @@ def _import_single_file(
                 chunk_start = time.time()
 
                 # Insert chunk using COPY FROM
-                _bulk_insert_with_copy(conn, chunk_df, table_name, schema)
+                _bulk_insert_with_copy(conn, chunk_df)
 
                 chunk_rows = len(chunk_df)
                 total_rows += chunk_rows
                 chunk_time = time.time() - chunk_start
                 chunk_time_str = f"{chunk_time:.2f}".replace(".", ",")
                 logger.info(
-                    f"  Chunk {chunk_count:03d}: {chunk_rows:,} linhas inseridas em {chunk_time_str}s ({chunk_rows / chunk_time:,.0f} linhas/s)".replace(
+                    f"  Chunk {chunk_count:03d}: {chunk_rows:,} lines inserted in {chunk_time_str}s ({chunk_rows / chunk_time:,.0f} lines/s)".replace(
                         ",", "."
                     )
                 )
@@ -324,10 +286,8 @@ def _import_single_file(
         return total_rows
 
 
-def _import_pip_files(
+def _import_multiple_pip_reports_files(
     file_list: list[Path],
-    table_name: str = IMPORT_TABLE,
-    schema: str = IMPORT_SCHEMA,
     truncate_table: bool = True,
 ) -> dict:
     """
@@ -360,10 +320,8 @@ def _import_pip_files(
             should_truncate = truncate_table and idx == 1
 
             # Import file
-            file_rows = _import_single_file(
+            file_rows = _import_single_pip_report_file(
                 file,
-                table_name=table_name,
-                schema=schema,
                 truncate_table=should_truncate,
             )
 
@@ -373,26 +331,26 @@ def _import_pip_files(
 
             results[file.name] = {
                 "status": "success",
-                "tempo": file_time,
-                "linhas": file_rows,
-                "velocidade": file_rows / file_time if file_time > 0 else 0,
+                "time": file_time,
+                "lines": file_rows,
+                "speed": file_rows / file_time if file_time > 0 else 0,
             }
 
         except Exception as e:
             logger.error(f"❌ Error processing {file.name}: {e}")
             results[file.name] = {
                 "status": "error",
-                "erro": str(e),
-                "tempo": 0,
-                "linhas": 0,
-                "velocidade": 0,
+                "error": str(e),
+                "time": 0,
+                "lines": 0,
+                "speed": 0,
             }
 
     total_time = time.time() - start_time_total
 
     # Final report
-    sucessos = sum(1 for r in results.values() if r["status"] == "success")
-    erros = len(results) - sucessos
+    successes = sum(1 for r in results.values() if r["status"] == "success")
+    errors = len(results) - successes
     total_rows_all_files_str = f"{total_rows_all_files:,}".replace(",", ".")
     total_time_str = f"{total_time:.2f}".replace(".", ",")
     avg_speed_str = f"{total_rows_all_files / total_time:,.0f}".replace(",", ".")
@@ -400,27 +358,25 @@ def _import_pip_files(
     logger.info("File import report")
     logger.info("════════════════════════════════════")
     logger.info(f"📊 Files processed: {len(file_list)}")
-    logger.info(f"✅ Successes: {sucessos}")
-    logger.info(f"❌ Errors: {erros}")
+    logger.info(f"✅ Successes: {successes}")
+    logger.info(f"❌ Errors: {errors}")
     logger.info(f"📈 Total rows: {total_rows_all_files_str}")
     logger.info(f"🕑 Total time: {total_time_str}s")
     logger.info(f"🚀 Average speed: {avg_speed_str} rows/s")
 
-    if erros > 0:
+    if errors > 0:
         logger.info("Files with errors:")
         for file_name, stats in results.items():
             if stats["status"] == "error":
-                logger.info(f" - {file_name}: {stats['erro']}")
-
+                logger.info(f" - {file_name}: {stats['error']}")
     return results
 
 
 def load_pip_reports(
     input_path: str,
-    table_name: str = IMPORT_TABLE,
-    schema: str = IMPORT_SCHEMA,
     truncate_table: bool = False,
     rebuild_database: bool = False,
+    rebuild_indexes: bool = False,
 ) -> dict:
     """
     Imports portability data from a file or folder.
@@ -450,8 +406,10 @@ def load_pip_reports(
     1;7266084;2139838690;0123;TIM SA;0121;EMBRATEL;11/06/2010 00:00:00;1;Ativo;Nao
 
     Args:
-        input_file_or_folder: Path to the file or folder
-        truncate_table: Whether to truncate the table before import
+        input_path: Path to the file or folder containing CSV files to import
+        truncate_table: Whether to truncate the import table before import
+        rebuild_database: Whether to drop and recreate the target table
+        rebuild_indexes: Whether to drop and recreate indexes on the target table
 
     Returns:
         dict: Detailed processing statistics
@@ -472,35 +430,35 @@ def load_pip_reports(
         logger.error(f"Invalid path: {input_path}")
         return {}
 
-    _ = _import_pip_files(
+    results = _import_multiple_pip_reports_files(
         files_to_import,
-        table_name=table_name,
-        schema=schema,
         truncate_table=truncate_table,
     )
 
     if rebuild_database:
+        _drop_tb_portabilidade_historico()
         _create_tb_portabilidade_historico()
+    elif rebuild_indexes:
+        _drop_tb_portabilidade_historico_indexes()
 
-    if not check_table_exists("public", "tb_portabilidade_historico"):
-        _create_tb_portabilidade_historico()
+    if not check_table_exists(TARGET_SCHEMA, TB_PORTABILIDADE_HISTORICO):
         # if table was just created, we need to create indexes as well
-        rebuild_database = True
-
+        rebuild_indexes = _create_tb_portabilidade_historico()
+        
     _update_tb_portabilidade_historico()
 
-    if rebuild_database:
+    if rebuild_indexes or rebuild_database:
         _create_tb_portabilidade_historico_indexes()
 
+    return results
 
 # function will be called if rebuild_database is True
-def _create_tb_portabilidade_historico() -> None:
+def _create_tb_portabilidade_historico() -> bool:
     """
     Create the tb_portabilidade_historico table if it does not exist.
 
-    Args:
-        conn: Database connection
-
+    Raises:
+        Exception: If table creation fails.
     """
     with get_db_connection() as conn:
         try:
@@ -514,16 +472,36 @@ def _create_tb_portabilidade_historico() -> None:
             conn.rollback()
             logger.error(f"Error creating tb_portabilidade_historico table: {e}")
             raise
+    return True
+
+def _drop_tb_portabilidade_historico() -> None:
+    """
+    Drop the tb_portabilidade_historico table if it exists.
+
+    Raises:
+        Exception: If table drop fails.
+    """
+    with get_db_connection() as conn:
+        try:
+            logger.info("Dropping tb_portabilidade_historico table...")
+            conn.cursor().execute(f"DROP TABLE IF EXISTS {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} CASCADE;")
+            conn.commit()
+            logger.info(
+                "Table tb_portabilidade_historico dropped successfully"
+            )
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error dropping tb_portabilidade_historico table: {e}")
+            raise
 
 
 def _create_tb_portabilidade_historico_indexes() -> None:
     """
     Create indexes for the tb_portabilidade_historico table.
 
-    Args:
-        conn: Database connection
+    Raises:
+        Exception: If index creation fails.
     """
-
     with get_db_connection() as conn:
         try:
             logger.info("Creating indexes for tb_portabilidade_historico table...")
@@ -537,27 +515,39 @@ def _create_tb_portabilidade_historico_indexes() -> None:
             )
             raise
 
+def _drop_tb_portabilidade_historico_indexes() -> None:
+    """
+    Drop indexes for the tb_portabilidade_historico table.
 
-def _update_tb_portabilidade_historico(
-    schema=IMPORT_SCHEMA, table_name=IMPORT_TABLE
-) -> None:
+    Raises:
+        Exception: If index drop fails.
+    """
+    with get_db_connection() as conn:
+        try:
+            logger.info("Dropping indexes for tb_portabilidade_historico table...")
+            conn.cursor().execute(DROP_TB_PORTABILIDADE_HISTORICO_INDEXES)
+            conn.commit()
+            logger.info("Indexes for tb_portabilidade_historico dropped successfully")
+        except Exception as e:
+            conn.rollback()
+            logger.error(
+                f"Error dropping indexes for tb_portabilidade_historico table: {e}"
+            )
+            raise
+
+
+def _update_tb_portabilidade_historico() -> None:
     """
     Update the tb_portabilidade_historico table with new records from the
-    abr_portabilidade table.
+    import table.
 
-    Args:
-        conn: Database connection
-        table_name: Source table name
-        schema: Source schema
+    Raises:
+        Exception: If table update fails.
     """
     with get_db_connection() as conn:
         try:
             logger.info("Updating tb_portabilidade_historico table...")
-            conn.cursor().execute(
-                UPDATE_TB_PORTABILIDADE_HISTORICO.format(
-                    schema=schema, table_name=table_name
-                )
-            )
+            conn.cursor().execute(UPDATE_TB_PORTABILIDADE_HISTORICO)
             conn.commit()
             logger.info("Table tb_portabilidade_historico updated successfully")
         except Exception as e:

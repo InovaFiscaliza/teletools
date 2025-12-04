@@ -68,22 +68,6 @@ def load_pip(
             metavar="INPUT_PATH",
         ),
     ],
-    table_name: Annotated[
-        str,
-        typer.Argument(
-            help="Database table name for data storage. "
-            "Table will be created automatically if it doesn't exist.",
-            metavar="TABLE_NAME",
-        ),
-    ] = "abr_portabilidade",
-    schema: Annotated[
-        str,
-        typer.Argument(
-            help="Database schema name for table organization. "
-            "Schema must exist in the target database.",
-            metavar="SCHEMA_NAME",
-        ),
-    ] = "entrada",
     truncate_table: Annotated[
         bool,
         typer.Option(
@@ -102,6 +86,15 @@ def load_pip(
             "Use --no-rebuild-database to append to existing data.",
         ),
     ] = False,
+    rebuild_indexes: Annotated[
+        bool,
+        typer.Option(
+            "--rebuild-indexes/--no-rebuild-indexes",
+            help="Rebuild portability database indexes."
+            "When enabled, existing indexes will be deleted before import and rebuilt. "
+            "Use --no-rebuild-indexes to keep existing indexes.",
+        ),
+    ] = False,
 ) -> None:
     """Import ABR portability data into PostgreSQL database.
 
@@ -118,10 +111,9 @@ def load_pip(
 
     Args:
         input_path: Path to CSV file or directory containing CSV files
-        table_name: Target database table (created if doesn't exist)
-        schema: Target database schema (must already exist)
         truncate_table: Whether to clear existing data before import
-        rebuild_database: Whether to rebuild the entire database before import
+        rebuild_database: Whether to rebuild the entire portability database before import
+        rebuild_indexes: Whether to rebuild portability database indexes
 
     Returns:
         None: Results are logged to console and log file
@@ -131,22 +123,21 @@ def load_pip(
 
     Examples:
         Import single file with default settings:
-        $ abr_loader load-portability data.csv.gz
+        $ abr_loader load-pip data.csv.gz
 
-        Import directory to custom table:
-        $ abr_loader load-portability /data/ my_table my_schema
+        Import directory with rebuild database:
+        $ abr_loader load-pip /data/ --rebuild-database
 
         Append data without truncating:
-        $ abr_loader load-portability /data/ --no-truncate-table
+        $ abr_loader load-pip /data/ --no-truncate-table
     """
 
     # Execute the import process
     load_pip_reports(
         input_path=input_path,
-        table_name=table_name,
-        schema=schema,
         truncate_table=truncate_table,
         rebuild_database=rebuild_database,
+        rebuild_indexes=rebuild_indexes,
     )
 
 
@@ -217,13 +208,13 @@ def load_nsapn(
 
     Examples:
         Import single ZIP file with default settings:
-        $ abr_loader load-numbering-plan STFC_202401.zip
+        $ abr_loader load-nsapn STFC_202401.zip
 
         Import directory of ZIP files to custom schema:
-        $ abr_loader load-numbering-plan /data/nsapn/ custom_schema
+        $ abr_loader load-nsapn /data/nsapn/ custom_schema
 
         Append data without truncating:
-        $ abr_loader load-numbering-plan /data/nsapn/ --no-truncate-table
+        $ abr_loader load-nsapn /data/nsapn/ --no-truncate-table
     """
     load_nsapn_files(
         input_path=input_path, schema=schema, truncate_table=truncate_table
