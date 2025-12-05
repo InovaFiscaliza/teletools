@@ -140,10 +140,13 @@ def validate_connection() -> bool:
     Returns:
         True if connection successful, False otherwise
     """
-<<<<<<< HEAD
-    # TODO: Implement actual connection pooling with psycopg2.pool
-    with get_db_connection() as conn:
-        yield conn
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                return True
+    except Exception:
+        return False
 
 def check_table_exists(schema: str, table_name: str) -> bool:
     """Check if a table exists in the database.
@@ -169,13 +172,4 @@ def check_table_exists(schema: str, table_name: str) -> bool:
                 return exists
     except Exception as e:
         print(f"Error checking table existence: {e}")
-=======
-    try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("SELECT 1")
-                return True
-    except Exception as e:
-        print(f"Database connection validation failed: {e}")
->>>>>>> 6902afcd1630f252e28d2074b71076634c3b64be
         return False

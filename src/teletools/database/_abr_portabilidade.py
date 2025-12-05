@@ -28,23 +28,22 @@ from io import StringIO
 from pathlib import Path
 
 import pandas as pd
-from ._database_config import get_db_connection
 
 from teletools.utils import setup_logger
 
-from ._database_config import get_db_connection, check_table_exists
 from ._abr_portabilidade_sql_queries import (
+    COPY_TO_IMPORT_TABLE,
+    CREATE_IMPORT_TABLE,
+    CREATE_TB_PORTABILIDADE_HISTORICO,
+    CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES,
     DROP_TB_PORTABILIDADE_HISTORICO_INDEXES,
     IMPORT_SCHEMA,
     IMPORT_TABLE,
-    CREATE_IMPORT_TABLE,
-    COPY_TO_IMPORT_TABLE,
-    CREATE_TB_PORTABILIDADE_HISTORICO,
-    CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES,
     TARGET_SCHEMA,
     TB_PORTABILIDADE_HISTORICO,
     UPDATE_TB_PORTABILIDADE_HISTORICO,
 )
+from ._database_config import check_table_exists, get_db_connection
 
 # Configure logger
 logger = setup_logger("abr_portabilidade.log")
