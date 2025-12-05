@@ -154,10 +154,11 @@ def _process_chunk(df: pd.DataFrame) -> pd.DataFrame:
 
 def _create_import_table_if_not_exists(conn) -> None:
     """
-    Create optimized table if it doesn't exist.
+    Create the import table if it doesn't exist.
 
     Args:
         conn: Database connection
+
     Raises:
         Exception: If table creation fails
     """
@@ -219,10 +220,13 @@ def _bulk_insert_with_copy(conn, df: pd.DataFrame) -> None:
 # function will be called if rebuild_database is True
 def _create_tb_portabilidade_historico() -> bool:
     """
-    Create the tb_portabilidade_historico table if it does not exist.
+    Create the tb_portabilidade_historico table.
+
+    Returns:
+        bool: Always returns True after successful creation
 
     Raises:
-        Exception: If table creation fails.
+        Exception: If table creation fails
     """
     with get_db_connection() as conn:
         try:
@@ -304,11 +308,13 @@ def _drop_tb_portabilidade_historico_indexes() -> None:
 
 def _update_tb_portabilidade_historico() -> None:
     """
-    Update the tb_portabilidade_historico table with new records from the
-    import table.
+    Update tb_portabilidade_historico table with new records from staging table.
+
+    Transfers data from the staging table to the partitioned history table,
+    handling conflicts by updating existing records with newer data.
 
     Raises:
-        Exception: If table update fails.
+        Exception: If table update fails
     """
     with get_db_connection() as conn:
         try:
@@ -327,17 +333,20 @@ def _import_single_pip_report_file(
     truncate_table: bool = True,
 ) -> int:
     """
-    Import a single portability file into the database.
+    Import a single portability file into the staging table.
+
+    Processes the CSV file in chunks and performs bulk inserts using PostgreSQL
+    COPY FROM for optimal performance.
 
     Args:
-        file: Path to the file to import
-        truncate_table: Whether to truncate table before import
+        file: Path to the CSV file to import
+        truncate_table: Whether to truncate the staging table before import
 
     Returns:
-        int: Number of rows imported
+        int: Total number of rows imported from the file
 
     Raises:
-        Exception: If import fails
+        Exception: If file reading or database insertion fails
     """
     start_time = time.time()
     total_rows = 0
@@ -400,12 +409,16 @@ def _import_multiple_pip_reports_files(
     """
     Process multiple portability files sequentially.
 
+    Imports all files into the staging table, truncating only before the first
+    import if requested. Provides detailed statistics for each file processed.
+
     Args:
-        file_list: List of files to process
-        truncate_table: Whether to truncate table before first import
+        file_list: List of file paths to process
+        truncate_table: Whether to truncate staging table before first import
 
     Returns:
-        dict: Detailed processing statistics
+        dict: Dictionary with filename as key and processing statistics as value.
+              Each value contains status, time, lines, and speed metrics.
     """
     if not file_list or not isinstance(file_list, list):
         logger.warning("File list is empty or not a list.")
@@ -513,13 +526,17 @@ def load_pip_reports(
     1;7266084;2139838690;0123;TIM SA;0121;EMBRATEL;11/06/2010 00:00:00;1;Ativo;Nao
 
     Args:
-        input_path: Path to the file or folder containing CSV files to import
-        truncate_table: Whether to truncate the import table before import
-        rebuild_database: Whether to drop and recreate the target table
-        rebuild_indexes: Whether to drop and recreate indexes on the target table
+        input_path: Path to a single CSV file or directory containing CSV files
+        truncate_table: Whether to truncate the staging table before import.
+                       Default is False to append data from multiple imports.
+        rebuild_database: Whether to drop and recreate tb_portabilidade_historico
+                         table. Use when full rebuild is needed.
+        rebuild_indexes: Whether to drop and recreate all indexes. Use after
+                        large data imports for optimization.
 
     Returns:
-        dict: Detailed processing statistics
+        dict: Processing statistics per file with keys as filenames and values
+              containing status, processing time, line count, and import speed.
 
     Raises:
         FileNotFoundError: If the input path does not exist
