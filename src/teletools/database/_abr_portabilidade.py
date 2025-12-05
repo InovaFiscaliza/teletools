@@ -216,6 +216,112 @@ def _bulk_insert_with_copy(conn, df: pd.DataFrame) -> None:
         raise
 
 
+# function will be called if rebuild_database is True
+def _create_tb_portabilidade_historico() -> bool:
+    """
+    Create the tb_portabilidade_historico table if it does not exist.
+
+    Raises:
+        Exception: If table creation fails.
+    """
+    with get_db_connection() as conn:
+        try:
+            logger.info("Creating tb_portabilidade_historico table...")
+            conn.cursor().execute(CREATE_TB_PORTABILIDADE_HISTORICO)
+            conn.commit()
+            logger.info(
+                "Table tb_portabilidade_historico created/verified successfully"
+            )
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error creating tb_portabilidade_historico table: {e}")
+            raise
+    return True
+
+
+def _drop_tb_portabilidade_historico() -> None:
+    """
+    Drop the tb_portabilidade_historico table if it exists.
+
+    Raises:
+        Exception: If table drop fails.
+    """
+    with get_db_connection() as conn:
+        try:
+            logger.info("Dropping tb_portabilidade_historico table...")
+            conn.cursor().execute(
+                f"DROP TABLE IF EXISTS {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} CASCADE;"
+            )
+            conn.commit()
+            logger.info("Table tb_portabilidade_historico dropped successfully")
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error dropping tb_portabilidade_historico table: {e}")
+            raise
+
+
+def _create_tb_portabilidade_historico_indexes() -> None:
+    """
+    Create indexes for the tb_portabilidade_historico table.
+
+    Raises:
+        Exception: If index creation fails.
+    """
+    with get_db_connection() as conn:
+        try:
+            logger.info("Creating indexes for tb_portabilidade_historico table...")
+            conn.cursor().execute(CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES)
+            conn.commit()
+            logger.info("Indexes for tb_portabilidade_historico created successfully")
+        except Exception as e:
+            conn.rollback()
+            logger.error(
+                f"Error creating indexes for tb_portabilidade_historico table: {e}"
+            )
+            raise
+
+
+def _drop_tb_portabilidade_historico_indexes() -> None:
+    """
+    Drop indexes for the tb_portabilidade_historico table.
+
+    Raises:
+        Exception: If index drop fails.
+    """
+    with get_db_connection() as conn:
+        try:
+            logger.info("Dropping indexes for tb_portabilidade_historico table...")
+            conn.cursor().execute(DROP_TB_PORTABILIDADE_HISTORICO_INDEXES)
+            conn.commit()
+            logger.info("Indexes for tb_portabilidade_historico dropped successfully")
+        except Exception as e:
+            conn.rollback()
+            logger.error(
+                f"Error dropping indexes for tb_portabilidade_historico table: {e}"
+            )
+            raise
+
+
+def _update_tb_portabilidade_historico() -> None:
+    """
+    Update the tb_portabilidade_historico table with new records from the
+    import table.
+
+    Raises:
+        Exception: If table update fails.
+    """
+    with get_db_connection() as conn:
+        try:
+            logger.info("Updating tb_portabilidade_historico table...")
+            conn.cursor().execute(UPDATE_TB_PORTABILIDADE_HISTORICO)
+            conn.commit()
+            logger.info("Table tb_portabilidade_historico updated successfully")
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error updating tb_portabilidade_historico table: {e}")
+            raise
+
+
 def _import_single_pip_report_file(
     file: Path,
     truncate_table: bool = True,
@@ -444,113 +550,10 @@ def load_pip_reports(
     if not check_table_exists(TARGET_SCHEMA, TB_PORTABILIDADE_HISTORICO):
         # if table was just created, we need to create indexes as well
         rebuild_indexes = _create_tb_portabilidade_historico()
-        
+
     _update_tb_portabilidade_historico()
 
     if rebuild_indexes or rebuild_database:
         _create_tb_portabilidade_historico_indexes()
 
     return results
-
-# function will be called if rebuild_database is True
-def _create_tb_portabilidade_historico() -> bool:
-    """
-    Create the tb_portabilidade_historico table if it does not exist.
-
-    Raises:
-        Exception: If table creation fails.
-    """
-    with get_db_connection() as conn:
-        try:
-            logger.info("Creating tb_portabilidade_historico table...")
-            conn.cursor().execute(CREATE_TB_PORTABILIDADE_HISTORICO)
-            conn.commit()
-            logger.info(
-                "Table tb_portabilidade_historico created/verified successfully"
-            )
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Error creating tb_portabilidade_historico table: {e}")
-            raise
-    return True
-
-def _drop_tb_portabilidade_historico() -> None:
-    """
-    Drop the tb_portabilidade_historico table if it exists.
-
-    Raises:
-        Exception: If table drop fails.
-    """
-    with get_db_connection() as conn:
-        try:
-            logger.info("Dropping tb_portabilidade_historico table...")
-            conn.cursor().execute(f"DROP TABLE IF EXISTS {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} CASCADE;")
-            conn.commit()
-            logger.info(
-                "Table tb_portabilidade_historico dropped successfully"
-            )
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Error dropping tb_portabilidade_historico table: {e}")
-            raise
-
-
-def _create_tb_portabilidade_historico_indexes() -> None:
-    """
-    Create indexes for the tb_portabilidade_historico table.
-
-    Raises:
-        Exception: If index creation fails.
-    """
-    with get_db_connection() as conn:
-        try:
-            logger.info("Creating indexes for tb_portabilidade_historico table...")
-            conn.cursor().execute(CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES)
-            conn.commit()
-            logger.info("Indexes for tb_portabilidade_historico created successfully")
-        except Exception as e:
-            conn.rollback()
-            logger.error(
-                f"Error creating indexes for tb_portabilidade_historico table: {e}"
-            )
-            raise
-
-def _drop_tb_portabilidade_historico_indexes() -> None:
-    """
-    Drop indexes for the tb_portabilidade_historico table.
-
-    Raises:
-        Exception: If index drop fails.
-    """
-    with get_db_connection() as conn:
-        try:
-            logger.info("Dropping indexes for tb_portabilidade_historico table...")
-            conn.cursor().execute(DROP_TB_PORTABILIDADE_HISTORICO_INDEXES)
-            conn.commit()
-            logger.info("Indexes for tb_portabilidade_historico dropped successfully")
-        except Exception as e:
-            conn.rollback()
-            logger.error(
-                f"Error dropping indexes for tb_portabilidade_historico table: {e}"
-            )
-            raise
-
-
-def _update_tb_portabilidade_historico() -> None:
-    """
-    Update the tb_portabilidade_historico table with new records from the
-    import table.
-
-    Raises:
-        Exception: If table update fails.
-    """
-    with get_db_connection() as conn:
-        try:
-            logger.info("Updating tb_portabilidade_historico table...")
-            conn.cursor().execute(UPDATE_TB_PORTABILIDADE_HISTORICO)
-            conn.commit()
-            logger.info("Table tb_portabilidade_historico updated successfully")
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Error updating tb_portabilidade_historico table: {e}")
-            raise
