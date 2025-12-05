@@ -54,6 +54,13 @@ def _encrypt_file(public_key_file: Path, input_file: Path, output_folder: Path):
         Creates an encrypted file in the output folder with the same name as the input file, appended with '.gpg'.
         Prints a success message if the file is encrypted successfully.
     """
+
+    public_key_file = Path(public_key_file).expanduser()
+    if not public_key_file.exists():
+        raise FileNotFoundError(f"Public key file {public_key_file} not found.")
+    else:
+        print(f"Public key file {public_key_file} found.")
+
     gpg = gnupg.GPG()
     try:
         results = gpg.import_keys_file(public_key_file)

@@ -6,7 +6,3 @@ __all__ = [
     "preprocessing",
     "utils",
 ]
-
-
-def hello() -> None:
-    print("Hello from teletools!")

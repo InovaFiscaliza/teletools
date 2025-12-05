@@ -1,6 +1,6 @@
 [project]
 name = "teletools"
-version = "0.1.0"
+version = "0.0.1"
 description = "Python Utility Functions Library for Call Details Records ( CDRs ) from Brazilian Telecommunications Carriers"
 readme = "README.md"
 authors = [
@@ -19,8 +19,8 @@ dependencies = [
 ]
 
 [project.scripts]
-cipher_cli = "teletools.cipher.cipher_cli:app"
-abr_loader = "teletools.database.abr_loader:app"
+cipher_cli = "teletools.cipher.cipher_cli:main"
+abr_loader = "teletools.database.abr_loader:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -30,3 +30,15 @@ build-backend = "hatchling.build"
 dev = [
     "pre-commit>=4.3.0",
 ]
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple/"
+publish-url = "https://upload.pypi.org/legacy/"
+default = true
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
