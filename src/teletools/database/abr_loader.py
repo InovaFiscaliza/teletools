@@ -3,38 +3,42 @@
 Command-line interface for importing Brazilian telecom data from
 ABR Telecom into a PostgreSQL database.
 
-This CLI provides two main commands:
+This CLI provides three main commands:
 
-1. load-portability: Import phone number portability data from PIP reports
-2. load-numbering-plan: Import numbering plan data from NSAPN public files (STFC, SMP, SME, CNG, SUP)
+1. load-pip: Import phone number portability data from PIP reports
+2. load-nsapn: Import numbering plan data from NSAPN public files (STFC, SMP, SME, CNG, SUP)
+3. test-connection: Verify PostgreSQL database connectivity
 
 Features:
 - Import single files or entire directories
 - Automatic file type detection (for numbering plan)
-- Configure target database table and schema
 - Control data loading behavior (truncate vs append)
 - Monitor import progress with detailed logging
 - Optimized chunked processing for large files
 
 Usage Examples:
     # Import portability data
-    abr_loader load-portability /path/to/pip_report.csv.gz
+    abr_loader load-pip /path/to/pip_report.csv.gz
 
     # Import numbering plan data (ZIP files)
-    abr_loader load-numbering-plan /path/to/nsapn_files/
+    abr_loader load-nsapn /path/to/nsapn_files/
 
-    # Import to custom table and schema
-    abr_loader load-portability /path/to/data/ custom_table custom_schema
+    # Import with rebuild database option
+    abr_loader load-pip /path/to/data/ --rebuild-database
 
     # Import without truncating existing data
-    abr_loader load-portability /path/to/data/ --no-truncate-table
-    abr_loader load-numbering-plan /path/to/data/ entrada --no-truncate-table
+    abr_loader load-pip /path/to/data/ --no-truncate-table
+
+    # Test database connection
+    abr_loader test-connection
 
 Requirements:
-    - PostgreSQL database connection configured in _database_config.py
+    - PostgreSQL database connection configured via .env file
+    - Required environment variables: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
+    - Optional: DB_SCHEMA (defaults to 'cdr')
     - For portability: CSV files in ABR PIP format (*.csv.gz)
     - For numbering plan: ZIP files from ABR NSAPN portal (*.zip)
-    - Required Python packages: typer, pandas, psycopg2
+    - Required Python packages: typer, pandas, psycopg2, python-dotenv
 
 Data Sources:
     - Portability: ABR Telecom PIP system reports (restricted access)
@@ -73,8 +77,8 @@ def load_pip(
         typer.Option(
             "--truncate-table/--no-truncate-table",
             help="Truncate table before import. "
-            "When enabled, existing data will be deleted before import. "
-            "Use --no-truncate-table to append to existing data.",
+            "When enabled, existing data will be deleted before and after import. "
+            "Use --no-truncate-table to append to existing data and keep it after import.",
         ),
     ] = True,
     rebuild_database: Annotated[
@@ -151,24 +155,7 @@ def load_nsapn(
             "Supports single files or batch processing.",
             metavar="INPUT_PATH",
         ),
-    ],
-    schema: Annotated[
-        str,
-        typer.Argument(
-            help="Database schema name for table organization. "
-            "Schema must exist in the target database.",
-            metavar="SCHEMA_NAME",
-        ),
-    ] = "entrada",
-    truncate_table: Annotated[
-        bool,
-        typer.Option(
-            "--truncate-table/--no-truncate-table",
-            help="Truncate table before import. "
-            "When enabled, existing data will be deleted before import. "
-            "Use --no-truncate-table to append to existing data.",
-        ),
-    ] = True,
+    ]
 ) -> None:
     """Import ABR numbering plan data into PostgreSQL database.
 
@@ -197,8 +184,6 @@ def load_nsapn(
 
     Args:
         input_path: Path to ZIP file or directory containing ZIP files
-        schema: Target database schema (must already exist)
-        truncate_table: Whether to clear existing data before import
 
     Returns:
         None: Results are logged to console and log file
@@ -207,18 +192,13 @@ def load_nsapn(
         typer.Exit: On file not found, database connection errors, or import failures
 
     Examples:
-        Import single ZIP file with default settings:
+        Import single ZIP file:
         $ abr_loader load-nsapn STFC_202401.zip
 
-        Import directory of ZIP files to custom schema:
-        $ abr_loader load-nsapn /data/nsapn/ custom_schema
-
-        Append data without truncating:
-        $ abr_loader load-nsapn /data/nsapn/ --no-truncate-table
+        Import directory of ZIP files:
+        $ abr_loader load-nsapn /data/nsapn/
     """
-    load_nsapn_files(
-        input_path=input_path, schema=schema, truncate_table=truncate_table
-    )
+    load_nsapn_files(input_path=input_path)
 
 
 def main() -> None:
