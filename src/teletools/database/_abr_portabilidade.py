@@ -248,15 +248,15 @@ def _drop_tb_portabilidade_historico() -> None:
     """
     with get_db_connection() as conn:
         try:
-            logger.info("Dropping tb_portabilidade_historico table...")
+            logger.info(f"Dropping {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table...")
             conn.cursor().execute(
                 f"DROP TABLE IF EXISTS {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} CASCADE;"
             )
             conn.commit()
-            logger.info("Table tb_portabilidade_historico dropped successfully")
+            logger.info(f"Table {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} dropped successfully")
         except Exception as e:
             conn.rollback()
-            logger.error(f"Error dropping tb_portabilidade_historico table: {e}")
+            logger.error(f"Error dropping {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}")
             raise
 
 
@@ -269,14 +269,14 @@ def _create_tb_portabilidade_historico_indexes() -> None:
     """
     with get_db_connection() as conn:
         try:
-            logger.info("Creating indexes for tb_portabilidade_historico table...")
+            logger.info(f"Creating indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table...")
             conn.cursor().execute(CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES)
             conn.commit()
-            logger.info("Indexes for tb_portabilidade_historico created successfully")
+            logger.info(f"Indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} created successfully")
         except Exception as e:
             conn.rollback()
             logger.error(
-                f"Error creating indexes for tb_portabilidade_historico table: {e}"
+                f"Error creating indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}"
             )
             raise
 
@@ -290,14 +290,14 @@ def _drop_tb_portabilidade_historico_indexes() -> None:
     """
     with get_db_connection() as conn:
         try:
-            logger.info("Dropping indexes for tb_portabilidade_historico table...")
+            logger.info(f"Dropping indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table...")
             conn.cursor().execute(DROP_TB_PORTABILIDADE_HISTORICO_INDEXES)
             conn.commit()
-            logger.info("Indexes for tb_portabilidade_historico dropped successfully")
+            logger.info(f"Indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} dropped successfully")
         except Exception as e:
             conn.rollback()
             logger.error(
-                f"Error dropping indexes for tb_portabilidade_historico table: {e}"
+                f"Error dropping indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}"
             )
             raise
 
@@ -312,13 +312,13 @@ def _update_tb_portabilidade_historico() -> None:
     """
     with get_db_connection() as conn:
         try:
-            logger.info("Updating tb_portabilidade_historico table...")
+            logger.info(f"Updating {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table...")
             conn.cursor().execute(UPDATE_TB_PORTABILIDADE_HISTORICO)
             conn.commit()
-            logger.info("Table tb_portabilidade_historico updated successfully")
+            logger.info(f"Table {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} updated successfully")
         except Exception as e:
             conn.rollback()
-            logger.error(f"Error updating tb_portabilidade_historico table: {e}")
+            logger.error(f"Error updating {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}")
             raise
 
 
@@ -351,9 +351,10 @@ def _import_single_pip_report_file(
             # Truncate table if requested
             if truncate_table:
                 with conn.cursor() as cursor:
+                    logger.info(f"Truncating {IMPORT_SCHEMA}.{IMPORT_TABLE} table...")
                     cursor.execute(f"TRUNCATE TABLE {IMPORT_SCHEMA}.{IMPORT_TABLE}")
                     conn.commit()
-                    logger.info(f"  Table {IMPORT_SCHEMA}.{IMPORT_TABLE} truncated")
+                    logger.info(f"Table {IMPORT_SCHEMA}.{IMPORT_TABLE} truncated")
 
             # Process file in chunks
             chunk_count = 0
@@ -462,7 +463,7 @@ def _import_multiple_pip_reports_files(
     avg_speed_str = f"{total_rows_all_files / total_time:,.0f}".replace(",", ".")
 
     logger.info("File import report")
-    logger.info("════════════════════════════════════")
+    logger.info("══════════════════")
     logger.info(f"📊 Files processed: {len(file_list)}")
     logger.info(f"✅ Successes: {successes}")
     logger.info(f"❌ Errors: {errors}")
