@@ -1,3 +1,19 @@
+"""
+SQL query constants for ABR portability data import and management.
+
+This module provides SQL scripts for creating, updating, and managing tables related to Brazilian phone number portability data.
+It is used by the data import pipeline to automate schema creation, bulk inserts, partitioning, and index management in PostgreSQL.
+
+Key tables:
+    - abr_portabilidade: Raw import table for PIP reports
+    - tb_portabilidade_historico: Partitioned history table for portability events
+    - tb_portabilidade_prestadoras: Reference table for unique carriers (operators)
+
+Usage:
+    Import scripts are executed via psycopg2 or other database adapters during ETL operations.
+    All comments and documentation are in English for international developer teams.
+"""
+
 IMPORT_SCHEMA = "entrada"
 IMPORT_TABLE = "abr_portabilidade"
 
@@ -46,13 +62,13 @@ COPY {IMPORT_SCHEMA}.{IMPORT_TABLE} (
 
 CREATE_TB_PORTABILIDADE_HISTORICO = f"""
 -- Optimized script to create the tb_portabilidade_historico table
--- Partitioned by CN with strategic grouping
--- Optimized for 60 million records
+-- Partitioned by CN (area code) with strategic grouping
+-- Designed for up to 60 million records
 
 -- Remove the table if it already exists
 DROP TABLE IF EXISTS {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} CASCADE;
 
--- Create the table partitioned by CN (DDD)
+-- Create the table partitioned by CN
 CREATE TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (
     tn_inicial BIGINT NOT NULL,
     numero_bp BIGINT,
@@ -77,14 +93,12 @@ CREATE TABLE {TB_PORTABILIDADE_HISTORICO}_cn_12_28
     PARTITION OF {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}
     FOR VALUES IN (12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 27, 28);
 
--- Partition 3: CN 30 to 55
--- CN 30 originates from prefixes 300 and 303
+-- Partition 3: CN 30 to 55 (CN 30 includes prefixes 300 and 303)
 CREATE TABLE {TB_PORTABILIDADE_HISTORICO}_cn_30_55
     PARTITION OF {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}
     FOR VALUES IN (30, 31, 32, 33, 34, 35, 37, 38, 41, 42, 43, 44, 45, 46, 47, 48, 49, 51, 53, 54, 55);
 
--- Partition 4: CN 61 to 99
--- CN 80 originates from prefix 800
+-- Partition 4: CN 61 to 99 (CN 80 includes prefix 800)
 CREATE TABLE {TB_PORTABILIDADE_HISTORICO}_cn_61_99
     PARTITION OF {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}
     FOR VALUES IN (61, 62, 63, 64, 65, 66, 67, 68, 69, 71, 73, 74, 75, 77, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 91, 92, 93, 94, 95, 96, 97, 98, 99);
@@ -97,7 +111,7 @@ CREATE TABLE {TB_PORTABILIDADE_HISTORICO}_cn_default
 """
 
 DROP_TB_PORTABILIDADE_HISTORICO_INDEXES = """
--- Indexes for tb_portabilidade_historico table
+-- Drop all indexes for tb_portabilidade_historico table
 DROP INDEX IF EXISTS idx_historico_tn_data;
 DROP INDEX IF EXISTS idx_historico_bp;
 DROP INDEX IF EXISTS idx_historico_data;
@@ -109,7 +123,7 @@ DROP INDEX IF EXISTS idx_historico_fluxo;
 """
 
 CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES = f"""
--- Indexes for tb_portabilidade_historico table
+-- Create all indexes for tb_portabilidade_historico table
 DROP INDEX IF EXISTS idx_historico_tn_data;
 DROP INDEX IF EXISTS idx_historico_bp;
 DROP INDEX IF EXISTS idx_historico_data;
@@ -148,43 +162,43 @@ ON {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (cn, data_agendamento DESC);
 -- Index for queries by status
 CREATE INDEX idx_historico_status 
 ON {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (cod_status, data_agendamento DESC);
+
 -- Index for operator combination (portability flow)
 CREATE INDEX idx_historico_fluxo 
 ON {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (cod_doadora, cod_receptora, data_agendamento DESC)
 WHERE cod_doadora <> -1 AND cod_receptora <> -1;
 
-
 -- Storage settings for optimization
 ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_11 SET (
-    fillfactor = 100,  -- 100% because it is a history table (insert only)
+    fillfactor = 100,  -- 100% fillfactor because this is a history table (insert only)
     autovacuum_enabled = true,
     autovacuum_vacuum_scale_factor = 0.05,
     autovacuum_analyze_scale_factor = 0.02
 );
 
 ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_12_28 SET (
-    fillfactor = 100,  -- 100% because it is a history table (insert only)
+    fillfactor = 100,  -- 100% fillfactor because this is a history table (insert only)
     autovacuum_enabled = true,
     autovacuum_vacuum_scale_factor = 0.05,
     autovacuum_analyze_scale_factor = 0.02
 );
 
 ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_30_55 SET (
-    fillfactor = 100,  -- 100% because it is a history table (insert only)
+    fillfactor = 100,  -- 100% fillfactor because this is a history table (insert only)
     autovacuum_enabled = true,
     autovacuum_vacuum_scale_factor = 0.05,
     autovacuum_analyze_scale_factor = 0.02
 );
 
 ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_61_99 SET (
-    fillfactor = 100,  -- 100% because it is a history table (insert only)
+    fillfactor = 100,  -- 100% fillfactor because this is a history table (insert only)
     autovacuum_enabled = true,
     autovacuum_vacuum_scale_factor = 0.05,
     autovacuum_analyze_scale_factor = 0.02
 );
 
 ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_default SET (
-    fillfactor = 100,  -- 100% because it is a history table (insert only)
+    fillfactor = 100,  -- 100% fillfactor because this is a history table (insert only)
     autovacuum_enabled = true,
     autovacuum_vacuum_scale_factor = 0.05,
     autovacuum_analyze_scale_factor = 0.02
@@ -247,10 +261,86 @@ DO UPDATE SET
     nome_arquivo      = EXCLUDED.nome_arquivo;
 """
 
-CREATE_TB_PORTABILIDADE_PRESTADORAS = """
+CREATE_TB_PORTABILIDADE_PRESTADORAS = f"""
 -- Script to create the tb_portabilidade_prestadoras table
+-- Optimized to aggregate all unique carriers (recipient and donor)
+-- Treats NULL values as -1 and consolidates into a single record
+
+-- Remove the table if it already exists
+DROP TABLE IF EXISTS {TARGET_SCHEMA}.{TB_PORTABILIDADE_PRESTADORAS};
+
+-- Create the table with aggregated data
+CREATE TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_PRESTADORAS} AS
+WITH prestadoras AS (
+    -- Combine all unique carriers (recipient and donor)
+    -- Replace NULL with -1 and consolidate into a single record
+    SELECT DISTINCT 
+        COALESCE(cod_receptora, -1) AS cod_prestadora,
+        CASE 
+            WHEN cod_receptora IS NULL THEN 'NÃO IDENTIFICADO'
+            ELSE nome_receptora 
+        END AS nome_prestadora
+    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE}
+    WHERE cod_receptora IS NOT NULL OR nome_receptora IS NOT NULL
+    
+    UNION
+    SELECT DISTINCT 
+        COALESCE(cod_doadora, -1) AS cod_prestadora,
+        CASE 
+            WHEN cod_doadora IS NULL THEN 'NÃO IDENTIFICADO'
+            ELSE nome_doadora 
+        END AS nome_prestadora
+    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE}
+    WHERE cod_doadora IS NOT NULL OR nome_doadora IS NOT NULL
+    
+    UNION
+    -- Explicitly add the record for unidentified carriers
+    SELECT -1 AS cod_prestadora, 'NÃO IDENTIFICADO' AS nome_prestadora
+)
+SELECT * FROM prestadoras;
+
+-- Add primary key
+ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_PRESTADORAS} 
+ADD PRIMARY KEY (cod_prestadora);
 """
 
-UPDATE_TB_PORTABILIDADE_PRESTADORAS = """
--- Script to create the tb_portabilidade_prestadoras table
+UPDATE_TB_PORTABILIDADE_PRESTADORAS = f"""
+-- Script to insert new data into tb_portabilidade_prestadoras table
+-- Optimized to insert only carriers that do not already exist in the table
+-- Treats NULL values as -1 and avoids duplicates
+
+INSERT INTO {TARGET_SCHEMA}.{TB_PORTABILIDADE_PRESTADORAS} (cod_prestadora, nome_prestadora)
+WITH prestadoras AS (
+    -- Combine all unique carriers (recipient and donor)
+    -- Replace NULL with -1 and consolidate into a single record
+    SELECT DISTINCT
+        COALESCE(cod_receptora, -1) AS cod_prestadora,
+        CASE
+            WHEN cod_receptora IS NULL THEN 'NÃO IDENTIFICADO'
+            ELSE nome_receptora
+        END AS nome_prestadora
+    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE}
+    WHERE cod_receptora IS NOT NULL OR nome_receptora IS NOT NULL
+
+    UNION
+    SELECT DISTINCT
+        COALESCE(cod_doadora, -1) AS cod_prestadora,
+        CASE
+            WHEN cod_doadora IS NULL THEN 'NÃO IDENTIFICADO'
+            ELSE nome_doadora
+        END AS nome_prestadora
+    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE}
+    WHERE cod_doadora IS NOT NULL OR nome_doadora IS NOT NULL
+
+    UNION
+    -- Explicitly add the record for unidentified carriers
+    SELECT -1 AS cod_prestadora, 'NÃO IDENTIFICADO' AS nome_prestadora
+)
+SELECT 
+    pn.cod_prestadora,
+    pn.nome_prestadora
+FROM prestadoras pn
+LEFT JOIN {TARGET_SCHEMA}.{TB_PORTABILIDADE_PRESTADORAS} tp 
+    ON pn.cod_prestadora = tp.cod_prestadora
+WHERE tp.cod_prestadora IS NULL;  -- Insert only those that do not exist
 """
