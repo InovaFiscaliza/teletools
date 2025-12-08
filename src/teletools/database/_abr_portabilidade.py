@@ -234,11 +234,11 @@ def _create_tb_portabilidade_historico() -> bool:
             conn.cursor().execute(CREATE_TB_PORTABILIDADE_HISTORICO)
             conn.commit()
             logger.info(
-                "Table tb_portabilidade_historico created/verified successfully"
+                f"Table {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} created/verified successfully"
             )
         except Exception as e:
             conn.rollback()
-            logger.error(f"Error creating tb_portabilidade_historico table: {e}")
+            logger.error(f"Error creating {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}")
             raise
     return True
 
@@ -553,20 +553,26 @@ def load_pip_reports(
     else:
         logger.error(f"Invalid path: {input_path}")
         return {}
+    
+    if len(files_to_import) == 0:
+        logger.warning(f"No CSV (*.csv.gz) files found in {input_path}")
+        return {}
 
+    # import pip files to staging table
     results = _import_multiple_pip_reports_files(
         files_to_import,
         truncate_table=truncate_table,
     )
 
+    # rebuild target table/indexes if requested
     if rebuild_database:
         _drop_tb_portabilidade_historico()
         _create_tb_portabilidade_historico()
     elif rebuild_indexes:
         _drop_tb_portabilidade_historico_indexes()
 
+    # if table was just created, we need to create indexes as well
     if not check_table_exists(TARGET_SCHEMA, TB_PORTABILIDADE_HISTORICO):
-        # if table was just created, we need to create indexes as well
         rebuild_indexes = _create_tb_portabilidade_historico()
 
     _update_tb_portabilidade_historico()
