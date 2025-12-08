@@ -238,7 +238,9 @@ def _create_tb_portabilidade_historico() -> bool:
             )
         except Exception as e:
             conn.rollback()
-            logger.error(f"Error creating {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}")
+            logger.error(
+                f"Error creating {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}"
+            )
             raise
     return True
 
@@ -252,15 +254,21 @@ def _drop_tb_portabilidade_historico() -> None:
     """
     with get_db_connection() as conn:
         try:
-            logger.info(f"Dropping {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table...")
+            logger.info(
+                f"Dropping {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table..."
+            )
             conn.cursor().execute(
                 f"DROP TABLE IF EXISTS {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} CASCADE;"
             )
             conn.commit()
-            logger.info(f"Table {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} dropped successfully")
+            logger.info(
+                f"Table {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} dropped successfully"
+            )
         except Exception as e:
             conn.rollback()
-            logger.error(f"Error dropping {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}")
+            logger.error(
+                f"Error dropping {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}"
+            )
             raise
 
 
@@ -273,10 +281,14 @@ def _create_tb_portabilidade_historico_indexes() -> None:
     """
     with get_db_connection() as conn:
         try:
-            logger.info(f"Creating indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table...")
+            logger.info(
+                f"Creating indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table..."
+            )
             conn.cursor().execute(CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES)
             conn.commit()
-            logger.info(f"Indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} created successfully")
+            logger.info(
+                f"Indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} created successfully"
+            )
         except Exception as e:
             conn.rollback()
             logger.error(
@@ -294,10 +306,14 @@ def _drop_tb_portabilidade_historico_indexes() -> None:
     """
     with get_db_connection() as conn:
         try:
-            logger.info(f"Dropping indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table...")
+            logger.info(
+                f"Dropping indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table..."
+            )
             conn.cursor().execute(DROP_TB_PORTABILIDADE_HISTORICO_INDEXES)
             conn.commit()
-            logger.info(f"Indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} dropped successfully")
+            logger.info(
+                f"Indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} dropped successfully"
+            )
         except Exception as e:
             conn.rollback()
             logger.error(
@@ -308,23 +324,30 @@ def _drop_tb_portabilidade_historico_indexes() -> None:
 
 def _update_tb_portabilidade_historico() -> None:
     """
-    Update tb_portabilidade_historico table with new records from staging table.
+    Update tb_portabilidade_historico with new records from the import table.
 
-    Transfers data from the staging table to the partitioned history table,
-    handling conflicts by updating existing records with newer data.
+    Transfers data from the import table to the partitioned history table,
+    performing an upsert operation that updates existing records or inserts
+    new ones based on the primary key (cn, tn_inicial, data_agendamento).
 
     Raises:
         Exception: If table update fails
     """
     with get_db_connection() as conn:
         try:
-            logger.info(f"Updating {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table...")
+            logger.info(
+                f"Updating {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table..."
+            )
             conn.cursor().execute(UPDATE_TB_PORTABILIDADE_HISTORICO)
             conn.commit()
-            logger.info(f"Table {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} updated successfully")
+            logger.info(
+                f"Table {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} updated successfully"
+            )
         except Exception as e:
             conn.rollback()
-            logger.error(f"Error updating {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}")
+            logger.error(
+                f"Error updating {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}"
+            )
             raise
 
 
@@ -527,12 +550,13 @@ def load_pip_reports(
 
     Args:
         input_path: Path to a single CSV file or directory containing CSV files
-        truncate_table: Whether to truncate the staging table before import.
+        truncate_table: Whether to truncate the import staging table before import.
                        Default is False to append data from multiple imports.
         rebuild_database: Whether to drop and recreate tb_portabilidade_historico
-                         table. Use when full rebuild is needed.
+                         table. When True, indexes are also rebuilt automatically.
         rebuild_indexes: Whether to drop and recreate all indexes. Use after
-                        large data imports for optimization.
+                        large data imports for optimization. Automatically enabled
+                        when table is newly created.
 
     Returns:
         dict: Processing statistics per file with keys as filenames and values
@@ -553,7 +577,7 @@ def load_pip_reports(
     else:
         logger.error(f"Invalid path: {input_path}")
         return {}
-    
+
     if len(files_to_import) == 0:
         logger.warning(f"No CSV (*.csv.gz) files found in {input_path}")
         return {}
