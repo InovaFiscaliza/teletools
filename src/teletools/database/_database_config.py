@@ -41,6 +41,7 @@ Usage:
         result = cursor.fetchone()
 """
 
+from asyncio.log import logger
 import os
 from contextlib import contextmanager
 from pathlib import Path
@@ -48,6 +49,9 @@ from typing import Any, Dict
 
 import psycopg2
 from dotenv import load_dotenv
+
+# Performance settings
+CHUNK_SIZE = 100000  # Process in chunks of 100k rows
 
 # Load environment variables from .env file
 env_file = Path("~").expanduser() / ".teletools.env"
@@ -148,7 +152,7 @@ def validate_connection() -> bool:
     except Exception:
         return False
 
-def check_table_exists(schema: str, table_name: str) -> bool:
+def check_if_table_exists(schema: str, table_name: str) -> bool:
     """Check if a table exists in the database.
 
     Args:
@@ -171,5 +175,33 @@ def check_table_exists(schema: str, table_name: str) -> bool:
                 exists = cursor.fetchone()[0]
                 return exists
     except Exception as e:
-        print(f"Error checking table existence: {e}")
+        logger.info(f"Error checking table existence: {e}")
         return False
+    
+def execute_truncate_table(schema: str, table_name: str, logger: any) -> None:
+    """
+    Truncate specified table.
+
+    Args:
+        schema: Schema of the table
+        table_name: Name of the table to truncate
+
+    Raises:
+        Exception: If truncation fails
+    """
+
+    if not check_if_table_exists(schema, table_name):
+        logger.info(f"Table {schema}.{table_name} does not exist. Skipping truncation.")
+        return
+
+    with get_db_connection() as conn: 
+        try:
+            with conn.cursor() as cursor:
+                logger.info(f"Truncating table {schema}.{table_name}...")
+                cursor.execute(f"TRUNCATE TABLE {schema}.{table_name};")
+            conn.commit()
+            logger.info(f"Table {schema}.{table_name} truncated successfully.")
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error truncating table {schema}.{table_name}: {e}")
+            raise

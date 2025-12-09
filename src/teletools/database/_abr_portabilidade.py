@@ -43,13 +43,14 @@ from ._abr_portabilidade_sql_queries import (
     TB_PORTABILIDADE_HISTORICO,
     UPDATE_TB_PORTABILIDADE_HISTORICO,
 )
-from ._database_config import check_table_exists, get_db_connection
+from ._database_config import check_if_table_exists, get_db_connection
+# Performance settings
+from ._database_config import CHUNK_SIZE
 
 # Configure logger
 logger = setup_logger("abr_portabilidade.log")
 
-# Performance settings
-CHUNK_SIZE = 100000  # Process in chunks of 100k rows
+
 
 
 def _read_file_in_chunks(
@@ -415,7 +416,7 @@ def _import_single_pip_report_file(
         insert_speed_str = f"{total_rows / total_time:,.0f}".replace(",", ".")
 
     except Exception as e:
-        logger.error(f"Error during import: {e}")
+        logger.error(f"Error during import of file {file.name}: {e}")
         raise
 
     else:
@@ -596,7 +597,7 @@ def load_pip_reports(
         _drop_tb_portabilidade_historico_indexes()
 
     # if table was just created, we need to create indexes as well
-    if not check_table_exists(TARGET_SCHEMA, TB_PORTABILIDADE_HISTORICO):
+    if not check_if_table_exists(TARGET_SCHEMA, TB_PORTABILIDADE_HISTORICO):
         rebuild_indexes = _create_tb_portabilidade_historico()
 
     _update_tb_portabilidade_historico()
