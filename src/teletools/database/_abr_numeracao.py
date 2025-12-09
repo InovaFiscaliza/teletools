@@ -84,8 +84,6 @@ from teletools.utils import setup_logger
 # Import and target table names
 # Import table definitions and configurations
 from ._abr_numeracao_sql_queries import (
-    CNG_FILE_COLUMNS,
-    CNG_TABLE_COLUMNS,
     CREATE_IMPORT_TABLE_CNG,
     CREATE_IMPORT_TABLE_STFC_SMP_SME,
     CREATE_IMPORT_TABLE_SUP,
@@ -95,19 +93,10 @@ from ._abr_numeracao_sql_queries import (
     IMPORT_TABLE_CNG,
     IMPORT_TABLE_STFC_SMP_SME,
     IMPORT_TABLE_SUP,
-    SMP_SME_FILE_COLUMNS,
-    SMP_SME_TABLE_COLUMNS,
-    STFC_FILE_COLUMNS,
-    STFC_TABLE_COLUMNS,
-    SUP_FILE_COLUMNS,
-    SUP_TABLE_COLUMNS,
-    TARGET_SCHEMA,
-    TB_NUMERACAO,
-    TB_NUMERACAO_PRESTADORAS,
 )
 
 # Performance settings
-from ._database_config import CHUNK_SIZE, check_if_table_exists, execute_truncate_table, get_db_connection
+from ._database_config import CHUNK_SIZE, execute_truncate_table, get_db_connection
 
 # Configure logger
 logger = setup_logger("abr_numeracao.log")
@@ -145,16 +134,17 @@ def _get_file_config(file: Path) -> dict:
 
 def _read_file_in_chunks(
     file: Path, file_config: dict, chunk_size: int = CHUNK_SIZE
-) -> Iterator[tuple[pd.DataFrame, str]]:
+) -> Iterator[pd.DataFrame]:
     """
     Read CSV file in chunks to optimize memory usage.
 
     Args:
         file: Path to the file
+        file_config: Configuration dictionary containing file metadata
         chunk_size: Size of each chunk
 
     Yields:
-        tuple: (DataFrame chunk with filename column added, file_type)
+        pd.DataFrame: Data chunk with filename column added
 
     Raises:
         Exception: If file reading fails
@@ -194,8 +184,7 @@ def _bulk_insert_with_copy(conn, df: pd.DataFrame, file_config: dict) -> None:
     Args:
         conn: Database connection
         df: DataFrame to insert
-        file_type: Type of file being processed
-        schema: Target schema
+        file_config: Configuration dictionary containing table name and columns
 
     Raises:
         Exception: If bulk insert fails
@@ -242,12 +231,10 @@ def _create_import_table_stfc_smp_sme_if_not_exists(
     conn,
 ) -> None:
     """
-    Create numbering table if it doesn't exist.
+    Create STFC/SMP/SME import table if it doesn't exist.
 
     Args:
         conn: Database connection
-        table_name: Name of the table
-        schema: Table schema
 
     Raises:
         Exception: If table creation fails
@@ -270,12 +257,10 @@ def _create_import_table_stfc_smp_sme_if_not_exists(
 
 def _create_import_table_cng_if_not_exists(conn) -> None:
     """
-    Create CNG table if it doesn't exist.
+    Create CNG import table if it doesn't exist.
 
     Args:
         conn: Database connection
-        table_name: Name of the table
-        schema: Table schema
 
     Raises:
         Exception: If table creation fails
@@ -296,12 +281,10 @@ def _create_import_table_cng_if_not_exists(conn) -> None:
 
 def _create_import_table_sup_if_not_exists(conn) -> None:
     """
-    Create SUP table if it doesn't exist.
+    Create SUP import table if it doesn't exist.
 
     Args:
         conn: Database connection
-        table_name: Name of the table
-        schema: Table schema
 
     Raises:
         Exception: If table creation fails
@@ -327,9 +310,11 @@ def _import_single_file(
     """
     Import a single numbering file into the database.
 
+    Automatically detects file type and creates appropriate import table.
+    Processes the file in chunks for memory efficiency.
+
     Args:
         file: Path to the file to import
-        schema: Target schema
         truncate_table: Whether to truncate table before import
 
     Returns:
@@ -402,13 +387,15 @@ def _import_multiple_files(
     """
     Process multiple numbering files sequentially.
 
+    When truncate_table is True, all import tables are truncated before
+    processing any files. Each file is then processed individually.
+
     Args:
         file_list: List of files to process
-        schema: Target schema
-        truncate_table: Whether to truncate tables before first import
+        truncate_table: Whether to truncate all import tables before processing
 
     Returns:
-        dict: Detailed processing statistics
+        dict: Detailed processing statistics with Portuguese keys for compatibility
     """
     if not file_list or not isinstance(file_list, list):
         logger.warning("File list is empty or not a list.")
@@ -488,14 +475,15 @@ def _import_multiple_files(
 
 def load_nsapn_files(input_path: str, truncate_table: bool = False) -> dict:
     """
-    Import Brazilian telecom numbering data plan from files or folders.
+    Import Brazilian telecom numbering plan data from files or folders.
 
     This function automatically detects the file type based on filename prefix
-    and imports the data to the appropriate table:
+    and imports the data to the appropriate import table:
 
-    - STFC files → abr_numeracao table (all columns)
-    - SMP/SME files → abr_numeracao table (subset of columns)
-    - CNG files → abr_cng table (CNG-specific columns)
+    - STFC files → entrada.abr_numeracao table (all columns)
+    - SMP/SME files → entrada.abr_numeracao table (subset of columns)
+    - CNG files → entrada.abr_cng table (CNG-specific columns)
+    - SUP files → entrada.abr_sup table (SUP-specific columns)
 
     File Type Detection:
     - Files starting with "STFC": Fixed telephony data
@@ -557,9 +545,8 @@ def load_nsapn_files(input_path: str, truncate_table: bool = False) -> dict:
     | status              | Status                         |
 
     Args:
-        input_path: Path to the file or folder containing numbering files
-        schema: Database schema name (default: "entrada")
-        truncate_table: Whether to truncate tables before import
+        input_path: Path to the file or folder containing numbering files (ZIP format)
+        truncate_table: Whether to truncate all import tables before processing
 
     Returns:
         dict: Detailed processing statistics including success/error counts,
@@ -571,13 +558,13 @@ def load_nsapn_files(input_path: str, truncate_table: bool = False) -> dict:
 
     Example:
         # Import single file
-        results = load_numbering_reports('/path/to/numbering_file.zip')
+        results = load_nsapn_files('/path/to/numbering_file.zip')
 
         # Import directory with mixed file types
-        results = load_numbering_reports('/path/to/numbering_files/')
+        results = load_nsapn_files('/path/to/numbering_files/')
 
         # Import with table truncation
-        results = load_numbering_reports('/path/to/files/', truncate_table=True)
+        results = load_nsapn_files('/path/to/files/', truncate_table=True)
     """
     input_path = Path(input_path)
 
