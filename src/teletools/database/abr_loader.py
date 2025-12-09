@@ -152,11 +152,20 @@ def load_nsapn(
         str,
         typer.Argument(
             help="Path to input file or directory. "
-            "If directory provided, all *.csv.gz files will be processed recursively. "
+            "If directory provided, all *.zip files will be processed recursively. "
             "Supports single files or batch processing.",
             metavar="INPUT_PATH",
         ),
-    ]
+    ],
+    truncate_table: Annotated[
+        bool,
+        typer.Option(
+            "--truncate-table/--no-truncate-table",
+            help="Truncate table before import. "
+            "When enabled, existing data will be deleted before and after import. "
+            "Use --no-truncate-table to append to existing data and keep it after import.",
+        ),
+    ] = True,
 ) -> None:
     """Import ABR numbering plan data into PostgreSQL database.
 
@@ -199,7 +208,7 @@ def load_nsapn(
         Import directory of ZIP files:
         $ abr_loader load-nsapn /data/nsapn/
     """
-    load_nsapn_files(input_path=input_path)
+    load_nsapn_files(input_path=input_path, truncate_table=truncate_table)
 
 
 @app.command(name="test-connection")
