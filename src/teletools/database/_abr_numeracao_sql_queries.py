@@ -1,0 +1,158 @@
+IMPORT_SCHEMA = "entrada"
+IMPORT_TABLE_STFC_SMP_SME = "abr_numeracao_stfc_smp_sme"
+IMPORT_TABLE_CNG = "abr_numeracao_cng"
+IMPORT_TABLE_SUP = "abr_numeracao_sup"
+
+TARGET_SCHEMA = "public"
+TB_NUMERACAO = "tb_numeracao"
+TB_NUMERACAO_PRESTADORAS = "tb_numeracao_prestadoras"
+
+# Column definitions for different file types
+STFC_FILE_COLUMNS = {
+    "nome_prestadora": "str",
+    "cnpj_prestadora": "str",
+    "uf": "str",
+    "cn": "str",
+    "prefixo": "str",
+    "faixa_inicial": "str",
+    "faixa_final": "str",
+    "codigo_cnl": "str",
+    "nome_localidade": "str",
+    "area_local": "str",
+    "sigla_area_local": "str",
+    "codigo_area_local": "str",
+    "status": "str",
+}
+
+STFC_TABLE_COLUMNS = list(STFC_FILE_COLUMNS.keys()) + ["servico", "nome_arquivo"]
+
+SMP_SME_FILE_COLUMNS = {
+    "nome_prestadora": "str",
+    "cnpj_prestadora": "str",
+    "cn": "str",
+    "prefixo": "str",
+    "faixa_inicial": "str",
+    "faixa_final": "str",
+    "status": "str",
+}
+
+SMP_SME_TABLE_COLUMNS = list(SMP_SME_FILE_COLUMNS.keys()) + ["servico", "nome_arquivo"]
+
+CNG_FILE_COLUMNS = {
+    "nome_prestadora": "str",
+    "cnpj_prestadora": "str",
+    "codigo_nao_geografico": "str",
+    "status": "str",
+}
+
+CNG_TABLE_COLUMNS = list(CNG_FILE_COLUMNS.keys()) + ["nome_arquivo"]
+
+SUP_FILE_COLUMNS = {
+    "nome_prestadora": "str",
+    "cnpj_prestadora": "str",
+    "numero_sup": "str",
+    "extensao": "str",
+    "uf": "str",
+    "cn": "str",
+    "codigo_municipio": "str",
+    "nome_municipio": "str",
+    "instituicao": "str",
+    "tipo": "str",
+    "status": "str",
+}
+
+SUP_TABLE_COLUMNS = list(SUP_FILE_COLUMNS.keys()) + ["nome_arquivo"]
+
+FILE_TYPE_CONFIG = {
+    "STFC": {
+        "file_type": "STFC",
+        "file_columns": list(STFC_FILE_COLUMNS.keys()),
+        "table_name": IMPORT_TABLE_STFC_SMP_SME,
+        "table_columns": STFC_TABLE_COLUMNS,
+        "dtype": STFC_FILE_COLUMNS,
+    },
+    "SMP_SME": {
+        "file_type": "SMP_SME",
+        "file_columns": list(SMP_SME_FILE_COLUMNS.keys()),
+        "table_name": IMPORT_TABLE_STFC_SMP_SME,
+        "table_columns": SMP_SME_TABLE_COLUMNS,
+        "dtype": SMP_SME_FILE_COLUMNS,
+    },
+    "CNG": {
+        "file_type": "CNG",
+        "file_columns": list(CNG_FILE_COLUMNS.keys()),
+        "table_name": IMPORT_TABLE_CNG,
+        "table_columns": CNG_TABLE_COLUMNS,
+        "dtype": CNG_FILE_COLUMNS,
+    },
+    "SUP": {
+        "file_type": "SUP",
+        "file_columns": list(SUP_FILE_COLUMNS.keys()),
+        "table_name": IMPORT_TABLE_SUP,
+        "table_columns": SUP_TABLE_COLUMNS,
+        "dtype": SUP_FILE_COLUMNS,
+    },
+}
+
+CREATE_IMPORT_TABLE_STFC_SMP_SME = f"""
+    CREATE TABLE IF NOT EXISTS {IMPORT_SCHEMA}.{IMPORT_TABLE_STFC_SMP_SME} (
+        nome_prestadora VARCHAR(200),
+        cnpj_prestadora VARCHAR(20),
+        uf VARCHAR(2),
+        cn VARCHAR(10),
+        prefixo VARCHAR(10),
+        faixa_inicial VARCHAR(20),
+        faixa_final VARCHAR(20),
+        codigo_cnl VARCHAR(10),
+        nome_localidade VARCHAR(200),
+        area_local VARCHAR(100),
+        sigla_area_local VARCHAR(10),
+        codigo_area_local VARCHAR(10),
+        status VARCHAR(50),
+        servico VARCHAR(10),
+        nome_arquivo VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Create indexes for performance
+    CREATE INDEX IF NOT EXISTS idx_{IMPORT_TABLE_STFC_SMP_SME}_faixa_inicial ON {IMPORT_SCHEMA}.{IMPORT_TABLE_STFC_SMP_SME}(faixa_inicial);
+    CREATE INDEX IF NOT EXISTS idx_{IMPORT_TABLE_STFC_SMP_SME}_faixa_final ON {IMPORT_SCHEMA}.{IMPORT_TABLE_STFC_SMP_SME}(faixa_final);
+    CREATE INDEX IF NOT EXISTS idx_{IMPORT_TABLE_STFC_SMP_SME}_cnpj ON {IMPORT_SCHEMA}.{IMPORT_TABLE_STFC_SMP_SME}(cnpj_prestadora);
+    """
+
+CREATE_IMPORT_TABLE_CNG = f"""
+    CREATE TABLE IF NOT EXISTS {IMPORT_SCHEMA}.{IMPORT_TABLE_CNG} (
+        nome_prestadora VARCHAR(200),
+        cnpj_prestadora VARCHAR(20),
+        codigo_nao_geografico VARCHAR(20),
+        status VARCHAR(50),
+        nome_arquivo VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Create indexes for performance
+    CREATE INDEX IF NOT EXISTS idx_{IMPORT_TABLE_CNG}_codigo_nao_geografico ON {IMPORT_SCHEMA}.{IMPORT_TABLE_CNG}(codigo_nao_geografico);
+    CREATE INDEX IF NOT EXISTS idx_{IMPORT_TABLE_CNG}_cnpj ON {IMPORT_SCHEMA}.{IMPORT_TABLE_CNG}(cnpj_prestadora);
+    """
+
+CREATE_IMPORT_TABLE_SUP = f"""
+    CREATE TABLE IF NOT EXISTS {IMPORT_SCHEMA}.{IMPORT_TABLE_SUP} (
+        nome_prestadora VARCHAR(200),
+        cnpj_prestadora VARCHAR(20),
+        numero_sup VARCHAR(20),
+        extensao VARCHAR(10),
+        uf VARCHAR(2),
+        cn VARCHAR(10),
+        codigo_municipio VARCHAR(10),
+        nome_municipio VARCHAR(200),
+        instituicao VARCHAR(100),
+        tipo VARCHAR(50),
+        status VARCHAR(50),
+        nome_arquivo VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Create indexes for performance
+    CREATE INDEX IF NOT EXISTS idx_{IMPORT_TABLE_SUP}_numero_sup ON {IMPORT_SCHEMA}.{IMPORT_TABLE_SUP}(numero_sup);
+    """
+
