@@ -1,11 +1,12 @@
-IMPORT_SCHEMA = "entrada"
-IMPORT_TABLE_STFC_SMP_SME = "abr_numeracao_stfc_smp_sme"
-IMPORT_TABLE_CNG = "abr_numeracao_cng"
-IMPORT_TABLE_SUP = "abr_numeracao_sup"
-
-TARGET_SCHEMA = "public"
-TB_NUMERACAO = "tb_numeracao"
-TB_NUMERACAO_PRESTADORAS = "tb_numeracao_prestadoras"
+from ._database_config import (
+    IMPORT_SCHEMA,
+    IMPORT_TABLE_CNG,
+    IMPORT_TABLE_STFC_SMP_SME,
+    IMPORT_TABLE_SUP,
+    TARGET_SCHEMA,
+    TB_NUMERACAO,
+    TB_PRESTADORAS,
+)
 
 # Column definitions for different file types
 STFC_FILE_COLUMNS = {
@@ -156,3 +157,57 @@ CREATE_IMPORT_TABLE_SUP = f"""
     CREATE INDEX IF NOT EXISTS idx_{IMPORT_TABLE_SUP}_numero_sup ON {IMPORT_SCHEMA}.{IMPORT_TABLE_SUP}(numero_sup);
     """
 
+
+CREATE_TB_NUMERACAO = f""""
+-- Criar a tabela otimizada
+CREATE TABLE IF NOT EXISTS {TARGET_SCHEMA}.{TB_NUMERACAO} (
+    faixa_inicial BIGINT NOT NULL,
+    faixa_final BIGINT NOT NULL,
+    cn SMALLINT NOT NULL,
+    codigo_cnl INTEGER NOT NULL,
+    cod_prestadora BIGINT NOT NULL
+) WITH (fillfactor = 100); -- fillfactor=100 para tabelas read-only/poucos updates
+
+-- Popular a tabela
+INSERT INTO {TARGET_SCHEMA}.{TB_NUMERACAO}
+SELECT
+    concat(cn, prefixo, faixa_inicial)::bigint AS faixa_inicial,
+    concat(cn, prefixo, faixa_final)::bigint AS faixa_final,
+    cn::smallint,
+    COALESCE(codigo_cnl, '-1')::int AS codigo_cnl,
+    cnpj_prestadora::bigint AS cod_prestadora
+FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_STFC_SMP_SME}
+UNION ALL
+SELECT
+    codigo_nao_geografico::bigint AS faixa_inicial,
+    codigo_nao_geografico::bigint AS faixa_final,
+    -1 AS cn,
+    -1 AS codigo_cnl,
+    cnpj_prestadora::bigint AS cod_prestadora
+FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_CNG}
+UNION ALL
+SELECT
+    concat(numero_sup, extensao)::bigint AS faixa_inicial,
+    concat(numero_sup, extensao)::bigint AS faixa_final,
+    CASE
+        WHEN cn = 'Todos' THEN -1
+        ELSE cn::smallint
+    END AS cn,
+    -1 AS codigo_cnl,
+    cnpj_prestadora::bigint AS cod_prestadora
+FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_SUP};
+
+-- Criar índice GIST para queries com BETWEEN (mais eficiente que B-tree para range queries)
+CREATE INDEX idx_faixas_range_gist ON {TARGET_SCHEMA}.{TB_NUMERACAO}
+USING GIST (int8range(faixa_inicial, faixa_final, '[]'));
+
+-- Criar índice B-tree composto para faixa_inicial e faixa_final
+CREATE INDEX idx_faixas_inicial_final ON {TARGET_SCHEMA}.{TB_NUMERACAO} (faixa_inicial, faixa_final);
+
+-- Atualizar estatísticas para o otimizador de queries
+ANALYZE {TARGET_SCHEMA}.{TB_NUMERACAO};
+
+-- Opcional: criar constraint de CHECK para garantir consistência
+ALTER TABLE {TARGET_SCHEMA}.{TB_NUMERACAO} 
+ADD CONSTRAINT chk_faixa_valida CHECK (faixa_inicial <= faixa_final);
+"""

@@ -5,24 +5,25 @@ This module provides SQL scripts for creating, updating, and managing tables rel
 It is used by the data import pipeline to automate schema creation, bulk inserts, partitioning, and index management in PostgreSQL.
 
 Key tables:
-    - abr_portabilidade: Raw import table for PIP reports
-    - tb_portabilidade_historico: Partitioned history table for portability events
-    - tb_portabilidade_prestadoras: Reference table for unique carriers (operators)
+    - IMPORT_TABLE_PORTABILIDADE: Raw import table for PIP reports
+    - TB_PORTABILIDADE_HISTORICO: Partitioned history table for portability events
+    - TB_PRESTADORAS: Reference table for unique carriers (operators)
 
 Usage:
     Import scripts are executed via psycopg2 or other database adapters during ETL operations.
     All comments and documentation are in English for international developer teams.
 """
 
-IMPORT_SCHEMA = "entrada"
-IMPORT_TABLE = "abr_portabilidade"
-
-TARGET_SCHEMA = "public"
-TB_PORTABILIDADE_HISTORICO = "tb_portabilidade_historico"
-TB_PORTABILIDADE_PRESTADORAS = "tb_portabilidade_prestadoras"
+from ._database_config import (
+    IMPORT_SCHEMA,
+    IMPORT_TABLE_PORTABILIDADE,
+    TARGET_SCHEMA,
+    TB_PORTABILIDADE_HISTORICO,
+    TB_PRESTADORAS,
+)
 
 CREATE_IMPORT_TABLE = f"""
-    CREATE TABLE IF NOT EXISTS {IMPORT_SCHEMA}.{IMPORT_TABLE} (
+    CREATE TABLE IF NOT EXISTS {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE} (
         tipo_registro INT8,
         numero_bp INT8 NOT NULL,
         tn_inicial INT8 NOT NULL,
@@ -39,12 +40,12 @@ CREATE_IMPORT_TABLE = f"""
     );
     
     -- Create indexes for performance
-    CREATE INDEX IF NOT EXISTS idx_{IMPORT_TABLE}_tn_inicial ON {IMPORT_SCHEMA}.{IMPORT_TABLE}(tn_inicial);
-    CREATE INDEX IF NOT EXISTS idx_{IMPORT_TABLE}_data_agendamento ON {IMPORT_SCHEMA}.{IMPORT_TABLE}(data_agendamento);
+    CREATE INDEX IF NOT EXISTS idx_{IMPORT_TABLE_PORTABILIDADE}_tn_inicial ON {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}(tn_inicial);
+    CREATE INDEX IF NOT EXISTS idx_{IMPORT_TABLE_PORTABILIDADE}_data_agendamento ON {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}(data_agendamento);
     """
 
 COPY_TO_IMPORT_TABLE = f"""
-COPY {IMPORT_SCHEMA}.{IMPORT_TABLE} (
+COPY {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE} (
     tipo_registro, 
     numero_bp, 
     tn_inicial, 
@@ -223,7 +224,7 @@ WITH port_entrada AS (
         ind_portar_origem,
         CAST(SUBSTRING(tn_inicial::TEXT, 1, 2) AS SMALLINT) AS cn,
         nome_arquivo
-    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE}
+    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}
     ORDER BY
         tn_inicial,
         data_agendamento,
@@ -261,16 +262,16 @@ DO UPDATE SET
     nome_arquivo      = EXCLUDED.nome_arquivo;
 """
 
-CREATE_TB_PORTABILIDADE_PRESTADORAS = f"""
--- Script to create the tb_portabilidade_prestadoras table
+CREATE_TB_PRESTADORAS = f"""
+-- Script to create the TB_PRESTADORAS table
 -- Optimized to aggregate all unique carriers (recipient and donor)
 -- Treats NULL values as -1 and consolidates into a single record
 
 -- Remove the table if it already exists
-DROP TABLE IF EXISTS {TARGET_SCHEMA}.{TB_PORTABILIDADE_PRESTADORAS};
+DROP TABLE IF EXISTS {TARGET_SCHEMA}.{TB_PRESTADORAS};
 
 -- Create the table with aggregated data
-CREATE TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_PRESTADORAS} AS
+CREATE TABLE {TARGET_SCHEMA}.{TB_PRESTADORAS} AS
 WITH prestadoras AS (
     -- Combine all unique carriers (recipient and donor)
     -- Replace NULL with -1 and consolidate into a single record
@@ -280,7 +281,7 @@ WITH prestadoras AS (
             WHEN cod_receptora IS NULL THEN 'NÃO IDENTIFICADO'
             ELSE nome_receptora 
         END AS nome_prestadora
-    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE}
+    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}
     WHERE cod_receptora IS NOT NULL OR nome_receptora IS NOT NULL
     
     UNION
@@ -290,7 +291,7 @@ WITH prestadoras AS (
             WHEN cod_doadora IS NULL THEN 'NÃO IDENTIFICADO'
             ELSE nome_doadora 
         END AS nome_prestadora
-    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE}
+    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}
     WHERE cod_doadora IS NOT NULL OR nome_doadora IS NOT NULL
     
     UNION
@@ -300,16 +301,16 @@ WITH prestadoras AS (
 SELECT * FROM prestadoras;
 
 -- Add primary key
-ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_PRESTADORAS} 
+ALTER TABLE {TARGET_SCHEMA}.{TB_PRESTADORAS} 
 ADD PRIMARY KEY (cod_prestadora);
 """
 
-UPDATE_TB_PORTABILIDADE_PRESTADORAS = f"""
--- Script to insert new data into tb_portabilidade_prestadoras table
+UPDATE_TB_PRESTADORAS = f"""
+-- Script to insert new data into TB_PRESTADORAS table
 -- Optimized to insert only carriers that do not already exist in the table
 -- Treats NULL values as -1 and avoids duplicates
 
-INSERT INTO {TARGET_SCHEMA}.{TB_PORTABILIDADE_PRESTADORAS} (cod_prestadora, nome_prestadora)
+INSERT INTO {TARGET_SCHEMA}.{TB_PRESTADORAS} (cod_prestadora, nome_prestadora)
 WITH prestadoras AS (
     -- Combine all unique carriers (recipient and donor)
     -- Replace NULL with -1 and consolidate into a single record
@@ -319,7 +320,7 @@ WITH prestadoras AS (
             WHEN cod_receptora IS NULL THEN 'NÃO IDENTIFICADO'
             ELSE nome_receptora
         END AS nome_prestadora
-    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE}
+    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}
     WHERE cod_receptora IS NOT NULL OR nome_receptora IS NOT NULL
 
     UNION
@@ -329,7 +330,7 @@ WITH prestadoras AS (
             WHEN cod_doadora IS NULL THEN 'NÃO IDENTIFICADO'
             ELSE nome_doadora
         END AS nome_prestadora
-    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE}
+    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}
     WHERE cod_doadora IS NOT NULL OR nome_doadora IS NOT NULL
 
     UNION
@@ -340,7 +341,7 @@ SELECT
     pn.cod_prestadora,
     pn.nome_prestadora
 FROM prestadoras pn
-LEFT JOIN {TARGET_SCHEMA}.{TB_PORTABILIDADE_PRESTADORAS} tp 
+LEFT JOIN {TARGET_SCHEMA}.{TB_PRESTADORAS} tp 
     ON pn.cod_prestadora = tp.cod_prestadora
 WHERE tp.cod_prestadora IS NULL;  -- Insert only those that do not exist
 """

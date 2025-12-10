@@ -53,6 +53,23 @@ from dotenv import load_dotenv
 # Performance settings
 CHUNK_SIZE = 100000  # Process in chunks of 100k rows
 
+# Schemas 
+IMPORT_SCHEMA = "entrada"
+TARGET_SCHEMA = "public"
+
+# Tables for number portability and providers
+IMPORT_TABLE_PORTABILIDADE = "abr_portabilidade"
+TB_PORTABILIDADE_HISTORICO = "tb_portabilidade_historico"
+
+# Tables for providers
+TB_PRESTADORAS = "TB_PRESTADORAS"
+
+# Tables for numbering plans
+IMPORT_TABLE_STFC_SMP_SME = "abr_numeracao_stfc_smp_sme"
+IMPORT_TABLE_CNG = "abr_numeracao_cng"
+IMPORT_TABLE_SUP = "abr_numeracao_sup"
+TB_NUMERACAO = "tb_numeracao"
+
 # Load environment variables from .env file
 env_file = Path("~").expanduser() / ".teletools.env"
 if env_file.exists():

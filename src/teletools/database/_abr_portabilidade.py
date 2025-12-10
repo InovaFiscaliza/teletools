@@ -37,15 +37,18 @@ from ._abr_portabilidade_sql_queries import (
     CREATE_TB_PORTABILIDADE_HISTORICO,
     CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES,
     DROP_TB_PORTABILIDADE_HISTORICO_INDEXES,
-    IMPORT_SCHEMA,
-    IMPORT_TABLE,
-    TARGET_SCHEMA,
-    TB_PORTABILIDADE_HISTORICO,
     UPDATE_TB_PORTABILIDADE_HISTORICO,
 )
-from ._database_config import check_if_table_exists, get_db_connection
-# Performance settings
-from ._database_config import CHUNK_SIZE
+
+from ._database_config import (
+    CHUNK_SIZE,
+    IMPORT_SCHEMA,
+    IMPORT_TABLE_PORTABILIDADE,
+    TARGET_SCHEMA,
+    TB_PORTABILIDADE_HISTORICO,
+    check_if_table_exists,
+    get_db_connection,
+)
 
 # Configure logger
 logger = setup_logger("abr_portabilidade.log")
@@ -169,7 +172,7 @@ def _create_import_table_if_not_exists(conn) -> None:
             cursor.execute(CREATE_IMPORT_TABLE)
         conn.commit()
         logger.info(
-            f"  Table {IMPORT_SCHEMA}.{IMPORT_TABLE} created/verified successfully"
+            f"  Table {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE} created/verified successfully"
         )
     except Exception as e:
         conn.rollback()
@@ -384,10 +387,10 @@ def _import_single_pip_report_file(
             # Truncate table if requested
             if truncate_table:
                 with conn.cursor() as cursor:
-                    logger.info(f"Truncating {IMPORT_SCHEMA}.{IMPORT_TABLE} table...")
-                    cursor.execute(f"TRUNCATE TABLE {IMPORT_SCHEMA}.{IMPORT_TABLE}")
+                    logger.info(f"Truncating {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE} table...")
+                    cursor.execute(f"TRUNCATE TABLE {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}")
                     conn.commit()
-                    logger.info(f"Table {IMPORT_SCHEMA}.{IMPORT_TABLE} truncated")
+                    logger.info(f"Table {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE} truncated")
 
             # Process file in chunks
             chunk_count = 0
