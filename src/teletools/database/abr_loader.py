@@ -7,7 +7,7 @@ This CLI provides three main commands:
 
 1. load-pip: Import phone number portability data from PIP reports
 2. load-nsapn: Import numbering plan data from NSAPN public files (STFC, SMP, SME, CNG, SUP)
-3. test-connection: Verify PostgreSQL database connectivity
+3. test-connection: Test PostgreSQL database connectivity and configuration
 
 Features:
 - Import single files or entire directories
@@ -194,6 +194,7 @@ def load_nsapn(
 
     Args:
         input_path: Path to ZIP file or directory containing ZIP files
+        truncate_table: Whether to clear existing data before import
 
     Returns:
         None: Results are logged to console and log file
@@ -207,6 +208,9 @@ def load_nsapn(
 
         Import directory of ZIP files:
         $ abr_loader load-nsapn /data/nsapn/
+
+        Append data without truncating:
+        $ abr_loader load-nsapn /data/nsapn/ --no-truncate-table
     """
     load_nsapn_files(input_path=input_path, truncate_table=truncate_table)
 
