@@ -62,13 +62,16 @@ IMPORT_TABLE_PORTABILIDADE = "abr_portabilidade"
 TB_PORTABILIDADE_HISTORICO = "tb_portabilidade_historico"
 
 # Tables for providers
-TB_PRESTADORAS = "TB_PRESTADORAS"
+TB_PRESTADORAS = "tb_prestadoras"
 
 # Tables for numbering plans
 IMPORT_TABLE_STFC_SMP_SME = "abr_numeracao_stfc_smp_sme"
 IMPORT_TABLE_CNG = "abr_numeracao_cng"
 IMPORT_TABLE_SUP = "abr_numeracao_sup"
 TB_NUMERACAO = "tb_numeracao"
+
+# Tables for queries
+TB_NUMBERS_TO_QUERY = "numbers_to_query"
 
 # Load environment variables from .env file
 env_file = Path("~").expanduser() / ".teletools.env"
@@ -222,3 +225,32 @@ def execute_truncate_table(schema: str, table_name: str, logger: any) -> None:
             conn.rollback()
             logger.error(f"Error truncating table {schema}.{table_name}: {e}")
             raise
+
+def execute_drop_table(schema: str, table_name: str, logger: any) -> None:
+    """
+    Drop specified table.
+
+    Args:
+        schema: Schema of the table
+        table_name: Name of the table to drop
+
+    Raises:
+        Exception: If dropping fails
+    """
+
+    if not check_if_table_exists(schema, table_name):
+        logger.info(f"Table {schema}.{table_name} does not exist. Skipping dropping.")
+        return
+
+    with get_db_connection() as conn: 
+        try:
+            with conn.cursor() as cursor:
+                logger.info(f"Dropping table {schema}.{table_name}...")
+                cursor.execute(f"DROP TABLE {schema}.{table_name} CASCADE;")
+            conn.commit()
+            logger.info(f"Table {schema}.{table_name} dropped successfully.")
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error dropping table {schema}.{table_name}: {e}")
+            raise
+

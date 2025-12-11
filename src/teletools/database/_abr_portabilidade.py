@@ -29,6 +29,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from teletools.database._abr_prestadoras import create_table_prestadoras, update_table_prestadoras
 from teletools.utils import setup_logger
 
 from ._abr_portabilidade_sql_queries import (
@@ -46,7 +47,9 @@ from ._database_config import (
     IMPORT_TABLE_PORTABILIDADE,
     TARGET_SCHEMA,
     TB_PORTABILIDADE_HISTORICO,
+    TB_PRESTADORAS,
     check_if_table_exists,
+    execute_drop_table,
     get_db_connection,
 )
 
@@ -172,7 +175,7 @@ def _create_import_table_if_not_exists(conn) -> None:
             cursor.execute(CREATE_IMPORT_TABLE)
         conn.commit()
         logger.info(
-            f"  Table {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE} created/verified successfully"
+            f"Table {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE} created/verified successfully"
         )
     except Exception as e:
         conn.rollback()
@@ -234,6 +237,8 @@ def _create_tb_portabilidade_historico() -> bool:
     """
     with get_db_connection() as conn:
         try:
+            if not check_if_table_exists(TARGET_SCHEMA, TB_PRESTADORAS):
+                create_table_prestadoras(conn) # ensure prestadoras table exists
             logger.info("Creating tb_portabilidade_historico table...")
             conn.cursor().execute(CREATE_TB_PORTABILIDADE_HISTORICO)
             conn.commit()
@@ -607,5 +612,7 @@ def load_pip_reports(
 
     if rebuild_indexes or rebuild_database:
         _create_tb_portabilidade_historico_indexes()
+
+    update_table_prestadoras()
 
     return results

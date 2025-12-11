@@ -87,16 +87,25 @@ from ._abr_numeracao_sql_queries import (
     CREATE_IMPORT_TABLE_CNG,
     CREATE_IMPORT_TABLE_STFC_SMP_SME,
     CREATE_IMPORT_TABLE_SUP,
-    # CREATE_TB_NUMERACAO,
+    CREATE_TB_NUMERACAO,
     FILE_TYPE_CONFIG,
     IMPORT_SCHEMA,
     IMPORT_TABLE_CNG,
     IMPORT_TABLE_STFC_SMP_SME,
     IMPORT_TABLE_SUP,
 )
+from ._abr_prestadoras import update_table_prestadoras
 
 # Performance settings
-from ._database_config import CHUNK_SIZE, execute_truncate_table, get_db_connection
+from ._database_config import (
+    CHUNK_SIZE,
+    TARGET_SCHEMA,
+    TB_NUMERACAO,
+    check_if_table_exists,
+    execute_drop_table,
+    execute_truncate_table,
+    get_db_connection,
+)
 
 # Configure logger
 logger = setup_logger("abr_numeracao.log")
@@ -456,7 +465,7 @@ def _import_multiple_files(
     avg_speed_str = f"{total_rows_all_files / total_time:,.0f}".replace(",", ".")
 
     logger.info("File import report")
-    logger.info("════════════════════════════════════")
+    logger.info("══════════════════")
     logger.info(f"📊 Files processed: {len(file_list)}")
     logger.info(f"✅ Successes: {sucessos}")
     logger.info(f"❌ Errors: {erros}")
@@ -471,6 +480,22 @@ def _import_multiple_files(
                 logger.info(f" - {file_name}: {stats['erro']}")
 
     return results
+
+
+def _create_tb_numeracao() -> None:
+    """ """
+    with get_db_connection() as conn:
+        try:
+            logger.info(f"Updating {TARGET_SCHEMA}.{TB_NUMERACAO} table...")
+            if check_if_table_exists(TARGET_SCHEMA, TB_NUMERACAO):
+                execute_drop_table(TARGET_SCHEMA, TB_NUMERACAO, logger)
+            conn.cursor().execute(CREATE_TB_NUMERACAO)
+            conn.commit()
+            logger.info(f"Table {TARGET_SCHEMA}.{TB_NUMERACAO} updated successfully")
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error updating {TARGET_SCHEMA}.{TB_NUMERACAO} table: {e}")
+            raise
 
 
 def load_nsapn_files(input_path: str, truncate_table: bool = False) -> dict:
@@ -584,11 +609,10 @@ def load_nsapn_files(input_path: str, truncate_table: bool = False) -> dict:
         logger.warning("No files found to import.")
         return {}
 
-    return _import_multiple_files(files_to_import, truncate_table=truncate_table)
+    results = _import_multiple_files(files_to_import, truncate_table=truncate_table)
 
+    _create_tb_numeracao()
 
-if __name__ == "__main__":
-    # Example usage for testing
+    update_table_prestadoras()
 
-    input_path = "/data/cdr/arquivos_auxiliares/abr/numeracao/nsapn/"
-    results = load_nsapn_files(input_path, truncate_table=True)
+    return results

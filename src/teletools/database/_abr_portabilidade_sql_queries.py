@@ -19,7 +19,6 @@ from ._database_config import (
     IMPORT_TABLE_PORTABILIDADE,
     TARGET_SCHEMA,
     TB_PORTABILIDADE_HISTORICO,
-    TB_PRESTADORAS,
 )
 
 CREATE_IMPORT_TABLE = f"""
@@ -111,63 +110,17 @@ CREATE TABLE {TB_PORTABILIDADE_HISTORICO}_cn_default
 
 """
 
-DROP_TB_PORTABILIDADE_HISTORICO_INDEXES = """
+DROP_TB_PORTABILIDADE_HISTORICO_INDEXES = f"""
 -- Drop all indexes for tb_portabilidade_historico table
-DROP INDEX IF EXISTS idx_historico_tn_data;
-DROP INDEX IF EXISTS idx_historico_bp;
-DROP INDEX IF EXISTS idx_historico_data;
-DROP INDEX IF EXISTS idx_historico_receptora;
-DROP INDEX IF EXISTS idx_historico_doadora;
-DROP INDEX IF EXISTS idx_historico_cn_data;
-DROP INDEX IF EXISTS idx_historico_status;
-DROP INDEX IF EXISTS idx_historico_fluxo;
+DROP INDEX IF EXISTS idx_{TB_PORTABILIDADE_HISTORICO}_tn_data;
 """
 
 CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES = f"""
 -- Create all indexes for tb_portabilidade_historico table
-DROP INDEX IF EXISTS idx_historico_tn_data;
-DROP INDEX IF EXISTS idx_historico_bp;
-DROP INDEX IF EXISTS idx_historico_data;
-DROP INDEX IF EXISTS idx_historico_receptora;
-DROP INDEX IF EXISTS idx_historico_doadora;
-DROP INDEX IF EXISTS idx_historico_cn_data;
-DROP INDEX IF EXISTS idx_historico_status;
-DROP INDEX IF EXISTS idx_historico_fluxo;
+DROP INDEX IF EXISTS idx_{TB_PORTABILIDADE_HISTORICO}_tn_data;
 
-CREATE INDEX idx_historico_tn_data 
+CREATE INDEX idx_{TB_PORTABILIDADE_HISTORICO}_tn_data 
 ON {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (tn_inicial, data_agendamento DESC);
-
--- Index for queries by numero_bp
-CREATE INDEX idx_historico_bp 
-ON {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (numero_bp)
-WHERE numero_bp IS NOT NULL;
-
--- Index for queries by date (temporal analysis)
-CREATE INDEX idx_historico_data 
-ON {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (data_agendamento DESC);
-
--- Index for queries by recipient operator
-CREATE INDEX idx_historico_receptora 
-ON {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (cod_receptora, data_agendamento DESC)
-WHERE cod_receptora <> -1;
-
--- Index for queries by donor operator
-CREATE INDEX idx_historico_doadora 
-ON {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (cod_doadora, data_agendamento DESC)
-WHERE cod_doadora <> -1;
-
--- Composite index for analysis by CN and period
-CREATE INDEX idx_historico_cn_data 
-ON {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (cn, data_agendamento DESC);
-
--- Index for queries by status
-CREATE INDEX idx_historico_status 
-ON {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (cod_status, data_agendamento DESC);
-
--- Index for operator combination (portability flow)
-CREATE INDEX idx_historico_fluxo 
-ON {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (cod_doadora, cod_receptora, data_agendamento DESC)
-WHERE cod_doadora <> -1 AND cod_receptora <> -1;
 
 -- Storage settings for optimization
 ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_11 SET (
@@ -260,88 +213,4 @@ DO UPDATE SET
     cod_status        = EXCLUDED.cod_status,
     ind_portar_origem = EXCLUDED.ind_portar_origem,
     nome_arquivo      = EXCLUDED.nome_arquivo;
-"""
-
-CREATE_TB_PRESTADORAS = f"""
--- Script to create the TB_PRESTADORAS table
--- Optimized to aggregate all unique carriers (recipient and donor)
--- Treats NULL values as -1 and consolidates into a single record
-
--- Remove the table if it already exists
-DROP TABLE IF EXISTS {TARGET_SCHEMA}.{TB_PRESTADORAS};
-
--- Create the table with aggregated data
-CREATE TABLE {TARGET_SCHEMA}.{TB_PRESTADORAS} AS
-WITH prestadoras AS (
-    -- Combine all unique carriers (recipient and donor)
-    -- Replace NULL with -1 and consolidate into a single record
-    SELECT DISTINCT 
-        COALESCE(cod_receptora, -1) AS cod_prestadora,
-        CASE 
-            WHEN cod_receptora IS NULL THEN 'NÃO IDENTIFICADO'
-            ELSE nome_receptora 
-        END AS nome_prestadora
-    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}
-    WHERE cod_receptora IS NOT NULL OR nome_receptora IS NOT NULL
-    
-    UNION
-    SELECT DISTINCT 
-        COALESCE(cod_doadora, -1) AS cod_prestadora,
-        CASE 
-            WHEN cod_doadora IS NULL THEN 'NÃO IDENTIFICADO'
-            ELSE nome_doadora 
-        END AS nome_prestadora
-    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}
-    WHERE cod_doadora IS NOT NULL OR nome_doadora IS NOT NULL
-    
-    UNION
-    -- Explicitly add the record for unidentified carriers
-    SELECT -1 AS cod_prestadora, 'NÃO IDENTIFICADO' AS nome_prestadora
-)
-SELECT * FROM prestadoras;
-
--- Add primary key
-ALTER TABLE {TARGET_SCHEMA}.{TB_PRESTADORAS} 
-ADD PRIMARY KEY (cod_prestadora);
-"""
-
-UPDATE_TB_PRESTADORAS = f"""
--- Script to insert new data into TB_PRESTADORAS table
--- Optimized to insert only carriers that do not already exist in the table
--- Treats NULL values as -1 and avoids duplicates
-
-INSERT INTO {TARGET_SCHEMA}.{TB_PRESTADORAS} (cod_prestadora, nome_prestadora)
-WITH prestadoras AS (
-    -- Combine all unique carriers (recipient and donor)
-    -- Replace NULL with -1 and consolidate into a single record
-    SELECT DISTINCT
-        COALESCE(cod_receptora, -1) AS cod_prestadora,
-        CASE
-            WHEN cod_receptora IS NULL THEN 'NÃO IDENTIFICADO'
-            ELSE nome_receptora
-        END AS nome_prestadora
-    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}
-    WHERE cod_receptora IS NOT NULL OR nome_receptora IS NOT NULL
-
-    UNION
-    SELECT DISTINCT
-        COALESCE(cod_doadora, -1) AS cod_prestadora,
-        CASE
-            WHEN cod_doadora IS NULL THEN 'NÃO IDENTIFICADO'
-            ELSE nome_doadora
-        END AS nome_prestadora
-    FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}
-    WHERE cod_doadora IS NOT NULL OR nome_doadora IS NOT NULL
-
-    UNION
-    -- Explicitly add the record for unidentified carriers
-    SELECT -1 AS cod_prestadora, 'NÃO IDENTIFICADO' AS nome_prestadora
-)
-SELECT 
-    pn.cod_prestadora,
-    pn.nome_prestadora
-FROM prestadoras pn
-LEFT JOIN {TARGET_SCHEMA}.{TB_PRESTADORAS} tp 
-    ON pn.cod_prestadora = tp.cod_prestadora
-WHERE tp.cod_prestadora IS NULL;  -- Insert only those that do not exist
 """
