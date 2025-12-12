@@ -17,9 +17,9 @@ logger = setup_logger()
 
 
 UPDATE_TB_PRESTADORAS_FROM_TB_PORTABILIDADE = f"""
--- Script to insert new data into TB_PRESTADORAS table
--- Optimized to insert only carriers that do not already exist in the table
--- Treats NULL values as -1 and avoids duplicates
+-- Script to insert or update data in TB_PRESTADORAS table
+-- Uses ON CONFLICT to handle duplicate keys
+-- Treats NULL values as -1 and updates existing records when conflicts occur
 
 INSERT INTO {TARGET_SCHEMA}.{TB_PRESTADORAS} (cod_prestadora, nome_prestadora)
 WITH prestadoras AS (
@@ -52,15 +52,16 @@ SELECT
     pn.cod_prestadora,
     pn.nome_prestadora
 FROM prestadoras pn
-LEFT JOIN {TARGET_SCHEMA}.{TB_PRESTADORAS} tp 
-    ON pn.cod_prestadora = tp.cod_prestadora
-WHERE tp.cod_prestadora IS NULL;  -- Insert only those that do not exist
+ON CONFLICT (cod_prestadora) 
+DO UPDATE SET 
+    nome_prestadora = EXCLUDED.nome_prestadora
+WHERE {TARGET_SCHEMA}.{TB_PRESTADORAS}.nome_prestadora IS DISTINCT FROM EXCLUDED.nome_prestadora;
 """
 
 UPDATE_TB_PRESTADORAS_FROM_TB_NUMERACAO = f"""
--- Script to insert new data into TB_PRESTADORAS table
--- Optimized to insert only carriers that do not already exist in the table
--- Treats NULL values as -1 and avoids duplicates
+-- Script to insert or update data in TB_PRESTADORAS table
+-- Uses ON CONFLICT to handle duplicate keys
+-- Treats NULL values as -1 and updates existing records when conflicts occur
 
 INSERT INTO {TARGET_SCHEMA}.{TB_PRESTADORAS} (cod_prestadora, nome_prestadora)
 WITH prestadoras AS (
@@ -83,9 +84,10 @@ SELECT
     pn.cod_prestadora,
     pn.nome_prestadora
 FROM prestadoras pn
-LEFT JOIN {TARGET_SCHEMA}.{TB_PRESTADORAS} tp 
-    ON pn.cod_prestadora = tp.cod_prestadora
-WHERE tp.cod_prestadora IS NULL;  -- Insert only those that do not exist
+ON CONFLICT (cod_prestadora) 
+DO UPDATE SET 
+    nome_prestadora = EXCLUDED.nome_prestadora
+WHERE {TARGET_SCHEMA}.{TB_PRESTADORAS}.nome_prestadora IS DISTINCT FROM EXCLUDED.nome_prestadora;
 """
 
 def _create_table_prestadoras(conn) -> None:
