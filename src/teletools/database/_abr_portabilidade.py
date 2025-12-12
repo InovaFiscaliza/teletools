@@ -472,7 +472,17 @@ def _import_multiple_pip_reports_files(
     successes = sum(1 for r in results.values() if r["status"] == "success")
     errors = len(results) - successes
     total_rows_all_files_str = f"{total_rows_all_files:,}".replace(",", ".")
-    total_time_str = f"{total_time:.2f}".replace(".", ",")
+    if total_time < 60:
+        total_time_str = f"{total_time:.2f}s".replace(".", ",")
+    elif total_time < 3600:
+        minutes = int(total_time // 60)
+        seconds = total_time % 60
+        total_time_str = f"{minutes}m {seconds:.2f}s".replace(".", ",")
+    else:
+        hours = int(total_time // 3600)
+        minutes = int((total_time % 3600) // 60)
+        seconds = total_time % 60
+        total_time_str = f"{hours}h {minutes}m {seconds:.2f}s".replace(".", ",")
     avg_speed_str = f"{total_rows_all_files / total_time:,.0f}".replace(",", ".")
 
     logger.info("File import report")
