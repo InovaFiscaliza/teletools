@@ -50,10 +50,11 @@ from typing import Any, Dict
 import psycopg2
 from dotenv import load_dotenv
 
+
 # Performance settings
 CHUNK_SIZE = 100000  # Process in chunks of 100k rows
 
-# Schemas 
+# Schemas
 IMPORT_SCHEMA = "entrada"
 TARGET_SCHEMA = "public"
 
@@ -172,12 +173,14 @@ def validate_connection() -> bool:
     except Exception:
         return False
 
+
 def check_if_table_exists(schema: str, table_name: str) -> bool:
     """Check if a table exists in the database.
 
     Args:
+        schema: Schema name where the table is located
         table_name: Name of the table to check
-    
+
     Returns:
         True if table exists, False otherwise
     """
@@ -197,14 +200,47 @@ def check_if_table_exists(schema: str, table_name: str) -> bool:
     except Exception as e:
         logger.info(f"Error checking table existence: {e}")
         return False
-    
-def execute_truncate_table(schema: str, table_name: str, logger: any) -> None:
-    """
-    Truncate specified table.
+
+
+def execute_create_table(
+    schema: str, table_name: str, create_table_query: str, logger: any
+) -> None:
+    """Create specified table if it does not exist.
 
     Args:
-        schema: Schema of the table
+        schema: Schema name where the table will be created
+        table_name: Name of the table to create
+        create_table_query: SQL query to create the table
+        logger: Logger instance for logging messages
+
+    Raises:
+        Exception: If table creation fails
+    """
+
+    if check_if_table_exists(schema, table_name):
+        logger.info(f"Table {schema}.{table_name} already exists. Skipping creation.")
+        return
+    with get_db_connection() as conn:
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(create_table_query)
+            conn.commit()
+            logger.info(
+                f"Table {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE} created/verified successfully"
+            )
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error creating table: {e}")
+            raise
+
+
+def execute_truncate_table(schema: str, table_name: str, logger: any) -> None:
+    """Truncate specified table.
+
+    Args:
+        schema: Schema name where the table is located
         table_name: Name of the table to truncate
+        logger: Logger instance for logging messages
 
     Raises:
         Exception: If truncation fails
@@ -214,7 +250,7 @@ def execute_truncate_table(schema: str, table_name: str, logger: any) -> None:
         logger.info(f"Table {schema}.{table_name} does not exist. Skipping truncation.")
         return
 
-    with get_db_connection() as conn: 
+    with get_db_connection() as conn:
         try:
             with conn.cursor() as cursor:
                 logger.info(f"Truncating table {schema}.{table_name}...")
@@ -226,13 +262,14 @@ def execute_truncate_table(schema: str, table_name: str, logger: any) -> None:
             logger.error(f"Error truncating table {schema}.{table_name}: {e}")
             raise
 
+
 def execute_drop_table(schema: str, table_name: str, logger: any) -> None:
-    """
-    Drop specified table.
+    """Drop specified table.
 
     Args:
-        schema: Schema of the table
+        schema: Schema name where the table is located
         table_name: Name of the table to drop
+        logger: Logger instance for logging messages
 
     Raises:
         Exception: If dropping fails
@@ -242,7 +279,7 @@ def execute_drop_table(schema: str, table_name: str, logger: any) -> None:
         logger.info(f"Table {schema}.{table_name} does not exist. Skipping dropping.")
         return
 
-    with get_db_connection() as conn: 
+    with get_db_connection() as conn:
         try:
             with conn.cursor() as cursor:
                 logger.info(f"Dropping table {schema}.{table_name}...")
@@ -253,4 +290,3 @@ def execute_drop_table(schema: str, table_name: str, logger: any) -> None:
             conn.rollback()
             logger.error(f"Error dropping table {schema}.{table_name}: {e}")
             raise
-

@@ -73,20 +73,20 @@ def load_pip(
             metavar="INPUT_PATH",
         ),
     ],
-    truncate_table: Annotated[
+    drop_table: Annotated[
         bool,
         typer.Option(
-            "--truncate-table/--no-truncate-table",
-            help="Truncate table before import. "
-            "When enabled, existing data will be deleted before and after import. "
-            "Use --no-truncate-table to append to existing data and keep it after import.",
+            "--drop-table/--no-drop-table",
+            help="Drop table after import. "
+            "When enabled, imported data will be deleted after import. "
+            "Use --no-drop-table to keep it after import.",
         ),
-    ] = True,
+    ] = False,
     rebuild_database: Annotated[
         bool,
         typer.Option(
             "--rebuild-database/--no-rebuild-database",
-            help="Rebuild database entire portability database. "
+            help="Rebuild entire portability database. "
             "When enabled, existing data will be deleted before import. "
             "Use --no-rebuild-database to append to existing data.",
         ),
@@ -116,7 +116,7 @@ def load_pip(
 
     Args:
         input_path: Path to CSV file or directory containing CSV files
-        truncate_table: Whether to clear existing data before import
+        drop_table: Whether to drop staging table after import (default: False)
         rebuild_database: Whether to rebuild the entire portability database before import
         rebuild_indexes: Whether to rebuild portability database indexes
 
@@ -133,14 +133,14 @@ def load_pip(
         Import directory with rebuild database:
         $ abr_loader load-pip /data/ --rebuild-database
 
-        Append data without truncating:
-        $ abr_loader load-pip /data/ --no-truncate-table
+        Drop staging table after import:
+        $ abr_loader load-pip /data/ --drop-table
     """
 
     # Execute the import process
     load_pip_reports(
         input_path=input_path,
-        truncate_table=truncate_table,
+        drop_table=drop_table,
         rebuild_database=rebuild_database,
         rebuild_indexes=rebuild_indexes,
     )
@@ -157,15 +157,15 @@ def load_nsapn(
             metavar="INPUT_PATH",
         ),
     ],
-    truncate_table: Annotated[
+    drop_table: Annotated[
         bool,
         typer.Option(
-            "--truncate-table/--no-truncate-table",
-            help="Truncate table before import. "
-            "When enabled, existing data will be deleted before and after import. "
-            "Use --no-truncate-table to append to existing data and keep it after import.",
+            "--drop-table/--no-drop-table",
+            help="Drop table after import. "
+            "When enabled, imported data will be deleted after import. "
+            "Use --no-drop-table to keep it after import.",
         ),
-    ] = True,
+    ] = False,
 ) -> None:
     """Import ABR numbering plan data into PostgreSQL database.
 
@@ -194,7 +194,7 @@ def load_nsapn(
 
     Args:
         input_path: Path to ZIP file or directory containing ZIP files
-        truncate_table: Whether to clear existing data before import
+        drop_table: Whether to drop existing data after import
 
     Returns:
         None: Results are logged to console and log file
@@ -210,9 +210,9 @@ def load_nsapn(
         $ abr_loader load-nsapn /data/nsapn/
 
         Append data without truncating:
-        $ abr_loader load-nsapn /data/nsapn/ --no-truncate-table
+        $ abr_loader load-nsapn /data/nsapn/ --no-drop-table
     """
-    load_nsapn_files(input_path=input_path, truncate_table=truncate_table)
+    load_nsapn_files(input_path=input_path, drop_table=drop_table)
 
 
 @app.command(name="test-connection")

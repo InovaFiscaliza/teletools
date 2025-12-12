@@ -1,17 +1,45 @@
-"""
-SQL query constants for ABR portability data import and management.
+"""SQL Query Constants for ABR Portability Data Import and Management.
 
-This module provides SQL scripts for creating, updating, and managing tables related to Brazilian phone number portability data.
-It is used by the data import pipeline to automate schema creation, bulk inserts, partitioning, and index management in PostgreSQL.
+This module provides SQL scripts for creating, updating, and managing tables
+related to Brazilian phone number portability data from ABR Telecom's PIP system.
+It is used by the data import pipeline to automate schema creation, bulk inserts,
+partitioning, and index management in PostgreSQL.
 
-Key tables:
-    - IMPORT_TABLE_PORTABILIDADE: Raw import table for PIP reports
-    - TB_PORTABILIDADE_HISTORICO: Partitioned history table for portability events
-    - TB_PRESTADORAS: Reference table for unique carriers (operators)
+SQL Query Categories:
+    Table Creation:
+        - CREATE_IMPORT_TABLE_PORTABILIDADE: Staging table for raw PIP report data
+        - CREATE_TB_PORTABILIDADE_HISTORICO: Partitioned final history table
+
+    Data Operations:
+        - COPY_TO_IMPORT_TABLE: Bulk insert template for COPY FROM command
+        - UPDATE_TB_PORTABILIDADE_HISTORICO: Upsert query from staging to final table
+
+    Index Management:
+        - DROP_TB_PORTABILIDADE_HISTORICO_INDEXES: Remove all indexes
+        - CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES: Create optimized indexes
+
+Key Tables:
+    - entrada.abr_portabilidade: Staging table for raw PIP reports
+    - public.tb_portabilidade_historico: Partitioned history table (by CN/area code)
+
+Partitioning Strategy:
+    The history table is partitioned by CN (area code) for optimal query performance:
+    - Partition 1: CN 11 (São Paulo metropolitan area)
+    - Partition 2: CN 12-28 (Southeast and South regions)
+    - Partition 3: CN 30-55 (Central-West and North regions)
+    - Partition 4: CN 61-99 (Northeast and special codes)
+    - Default: Invalid or unrecognized CNs
 
 Usage:
-    Import scripts are executed via psycopg2 or other database adapters during ETL operations.
-    All comments and documentation are in English for international developer teams.
+    These SQL queries are executed via psycopg2 during ETL operations.
+    All comments and documentation are in English for international teams.
+
+Example:
+    from ._abr_portabilidade_sql_queries import CREATE_IMPORT_TABLE_PORTABILIDADE
+    
+    with conn.cursor() as cursor:
+        cursor.execute(CREATE_IMPORT_TABLE_PORTABILIDADE)
+        conn.commit()
 """
 
 from ._database_config import (
@@ -21,7 +49,7 @@ from ._database_config import (
     TB_PORTABILIDADE_HISTORICO,
 )
 
-CREATE_IMPORT_TABLE = f"""
+CREATE_IMPORT_TABLE_PORTABILIDADE = f"""
     CREATE TABLE IF NOT EXISTS {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE} (
         tipo_registro INT8,
         numero_bp INT8 NOT NULL,
@@ -181,7 +209,7 @@ WITH port_entrada AS (
     ORDER BY
         tn_inicial,
         data_agendamento,
-        nome_arquivo DESC   -- mantém a linha mais recente
+        nome_arquivo DESC   -- Keep most recent row
 )
 INSERT INTO {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (
     tn_inicial,

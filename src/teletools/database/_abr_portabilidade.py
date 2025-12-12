@@ -29,18 +29,17 @@ from pathlib import Path
 
 import pandas as pd
 
-from ._abr_prestadoras import update_table_prestadoras
 from teletools.utils import setup_logger
 
 from ._abr_portabilidade_sql_queries import (
     COPY_TO_IMPORT_TABLE,
-    CREATE_IMPORT_TABLE,
+    CREATE_IMPORT_TABLE_PORTABILIDADE,
     CREATE_TB_PORTABILIDADE_HISTORICO,
     CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES,
     DROP_TB_PORTABILIDADE_HISTORICO_INDEXES,
     UPDATE_TB_PORTABILIDADE_HISTORICO,
 )
-
+from ._abr_prestadoras import update_table_prestadoras
 from ._database_config import (
     CHUNK_SIZE,
     IMPORT_SCHEMA,
@@ -49,13 +48,14 @@ from ._database_config import (
     TB_PORTABILIDADE_HISTORICO,
     TB_PRESTADORAS,
     check_if_table_exists,
+    execute_create_table,
+    execute_drop_table,
+    execute_truncate_table,
     get_db_connection,
 )
 
 # Configure logger
 logger = setup_logger("abr_portabilidade.log")
-
-
 
 
 def _read_file_in_chunks(
@@ -158,30 +158,6 @@ def _process_chunk(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _create_import_table_if_not_exists(conn) -> None:
-    """
-    Create the import table if it doesn't exist.
-
-    Args:
-        conn: Database connection
-
-    Raises:
-        Exception: If table creation fails
-    """
-
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute(CREATE_IMPORT_TABLE)
-        conn.commit()
-        logger.info(
-            f"Table {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE} created/verified successfully"
-        )
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Error creating table: {e}")
-        raise
-
-
 def _bulk_insert_with_copy(conn, df: pd.DataFrame) -> None:
     """
     Perform bulk insert using PostgreSQL COPY FROM for maximum performance.
@@ -237,7 +213,7 @@ def _create_tb_portabilidade_historico() -> bool:
     with get_db_connection() as conn:
         try:
             if not check_if_table_exists(TARGET_SCHEMA, TB_PRESTADORAS):
-                update_table_prestadoras() # ensure prestadoras table exists
+                update_table_prestadoras()  # ensure prestadoras table exists
             logger.info("Creating tb_portabilidade_historico table...")
             conn.cursor().execute(CREATE_TB_PORTABILIDADE_HISTORICO)
             conn.commit()
@@ -361,7 +337,6 @@ def _update_tb_portabilidade_historico() -> None:
 
 def _import_single_pip_report_file(
     file: Path,
-    truncate_table: bool = True,
 ) -> int:
     """
     Import a single portability file into the staging table.
@@ -371,7 +346,6 @@ def _import_single_pip_report_file(
 
     Args:
         file: Path to the CSV file to import
-        truncate_table: Whether to truncate the staging table before import
 
     Returns:
         int: Total number of rows imported from the file
@@ -386,16 +360,6 @@ def _import_single_pip_report_file(
 
     try:
         with get_db_connection() as conn:
-            # Create table if necessary
-            _create_import_table_if_not_exists(conn)
-            # Truncate table if requested
-            if truncate_table:
-                with conn.cursor() as cursor:
-                    logger.info(f"Truncating {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE} table...")
-                    cursor.execute(f"TRUNCATE TABLE {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}")
-                    conn.commit()
-                    logger.info(f"Table {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE} truncated")
-
             # Process file in chunks
             chunk_count = 0
             for chunk_df in _read_file_in_chunks(file):
@@ -435,21 +399,26 @@ def _import_single_pip_report_file(
 
 def _import_multiple_pip_reports_files(
     file_list: list[Path],
-    truncate_table: bool = True,
 ) -> dict:
     """
-    Process multiple portability files sequentially.
+    Process multiple portability files sequentially into staging table.
 
-    Imports all files into the staging table, truncating only before the first
-    import if requested. Provides detailed statistics for each file processed.
+    Truncates the staging table (tb_portabilidade) before processing begins,
+    then imports all files using chunked reads and bulk inserts via PostgreSQL
+    COPY command for optimal performance. Each file is processed sequentially
+    with detailed statistics tracking.
 
     Args:
-        file_list: List of file paths to process
-        truncate_table: Whether to truncate staging table before first import
+        file_list: List of Path objects pointing to compressed CSV files (*.csv.gz)
 
     Returns:
         dict: Dictionary with filename as key and processing statistics as value.
-              Each value contains status, time, lines, and speed metrics.
+              Each value contains:
+              - status: 'success' or 'error'
+              - time: Processing time in seconds
+              - lines: Number of rows processed
+              - speed: Import speed in rows/second
+              - error: Error message (only if status is 'error')
     """
     if not file_list or not isinstance(file_list, list):
         logger.warning("File list is empty or not a list.")
@@ -461,25 +430,25 @@ def _import_multiple_pip_reports_files(
     results = {}
     total_rows_all_files = 0
 
+    # Ensure import table exists and is empty before first file
+    execute_create_table(
+        IMPORT_SCHEMA,
+        IMPORT_TABLE_PORTABILIDADE,
+        CREATE_IMPORT_TABLE_PORTABILIDADE,
+        logger,
+    )
+    execute_truncate_table(IMPORT_SCHEMA, IMPORT_TABLE_PORTABILIDADE, logger)
+
     for idx, file in enumerate(file_list, 1):
         logger.info(f"📁 Processing file {idx}/{len(file_list)}:")
 
         try:
             file_start = time.time()
 
-            # Only truncate on first import if requested
-            should_truncate = truncate_table and idx == 1
-
             # Import file
-            file_rows = _import_single_pip_report_file(
-                file,
-                truncate_table=should_truncate,
-            )
-
+            file_rows = _import_single_pip_report_file(file)
             file_time = time.time() - file_start
-
             total_rows_all_files += file_rows
-
             results[file.name] = {
                 "status": "success",
                 "time": file_time,
@@ -525,7 +494,7 @@ def _import_multiple_pip_reports_files(
 
 def load_pip_reports(
     input_path: str,
-    truncate_table: bool = False,
+    drop_table: bool = False,
     rebuild_database: bool = False,
     rebuild_indexes: bool = False,
 ) -> dict:
@@ -558,8 +527,8 @@ def load_pip_reports(
 
     Args:
         input_path: Path to a single CSV file or directory containing CSV files
-        truncate_table: Whether to truncate the import staging table before import.
-                       Default is False to append data from multiple imports.
+        drop_table: Whether to drop the import staging table after import.
+                    Default is False to append data from multiple imports.
         rebuild_database: Whether to drop and recreate tb_portabilidade_historico
                          table. When True, indexes are also rebuilt automatically.
         rebuild_indexes: Whether to drop and recreate all indexes. Use after
@@ -591,10 +560,7 @@ def load_pip_reports(
         return {}
 
     # import pip files to staging table
-    results = _import_multiple_pip_reports_files(
-        files_to_import,
-        truncate_table=truncate_table,
-    )
+    results = _import_multiple_pip_reports_files(files_to_import)
 
     # rebuild target table/indexes if requested
     if rebuild_database:
@@ -613,5 +579,8 @@ def load_pip_reports(
         _create_tb_portabilidade_historico_indexes()
 
     update_table_prestadoras()
+
+    if drop_table:
+        execute_drop_table(IMPORT_SCHEMA, IMPORT_TABLE_PORTABILIDADE, logger)
 
     return results
