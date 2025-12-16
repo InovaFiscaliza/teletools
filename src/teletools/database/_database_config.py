@@ -59,20 +59,20 @@ IMPORT_SCHEMA = "entrada"
 TARGET_SCHEMA = "public"
 
 # Tables for number portability and providers
-IMPORT_TABLE_PORTABILIDADE = "abr_portabilidade"
-TB_PORTABILIDADE_HISTORICO = "tb_portabilidade_historico"
+IMPORT_TABLE_PORTABILIDADE = "teletools_import_portabilidade"
+TB_PORTABILIDADE_HISTORICO = "teletools_tb_portabilidade_historico"
 
-# Tables for providers
-TB_PRESTADORAS = "tb_prestadoras"
+# Tables for carriers/providers
+TB_PRESTADORAS = "teletools_tb_prestadoras"
 
 # Tables for numbering plans
-IMPORT_TABLE_STFC_SMP_SME = "abr_numeracao_stfc_smp_sme"
-IMPORT_TABLE_CNG = "abr_numeracao_cng"
-IMPORT_TABLE_SUP = "abr_numeracao_sup"
-TB_NUMERACAO = "tb_numeracao"
+IMPORT_TABLE_STFC_SMP_SME = "teletools_import_numeracao_stfc_smp_sme"
+IMPORT_TABLE_CNG = "teletools_import_numeracao_cng"
+IMPORT_TABLE_SUP = "teletools_import_numeracao_sup"
+TB_NUMERACAO = "teletools_tb_numeracao"
 
 # Tables for queries
-TB_NUMBERS_TO_QUERY = "numbers_to_query"
+TB_NUMBERS_TO_QUERY = "teletools_numbers_to_query"
 
 # Load environment variables from .env file
 env_file = Path("~").expanduser() / ".teletools.env"
