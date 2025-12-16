@@ -24,7 +24,6 @@ Typical usage:
 
 import time
 from collections.abc import Iterator
-from io import StringIO
 from pathlib import Path
 
 import pandas as pd
@@ -32,7 +31,7 @@ import pandas as pd
 from teletools.utils import setup_logger
 
 from ._abr_portabilidade_sql_queries import (
-    COPY_TO_IMPORT_TABLE,
+    COPY_TO_IMPORT_TABLE_PORTABILIDADE,
     CREATE_IMPORT_TABLE_PORTABILIDADE,
     CREATE_TB_PORTABILIDADE_HISTORICO,
     CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES,
@@ -47,6 +46,7 @@ from ._database_config import (
     TARGET_SCHEMA,
     TB_PORTABILIDADE_HISTORICO,
     TB_PRESTADORAS,
+    bulk_insert_with_copy,
     check_if_table_exists,
     execute_create_table,
     execute_drop_table,
@@ -156,48 +156,6 @@ def _process_chunk(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(subset=["numero_bp", "tn_inicial"])
 
     return df
-
-
-def _bulk_insert_with_copy(conn, df: pd.DataFrame) -> None:
-    """
-    Perform bulk insert using PostgreSQL COPY FROM for maximum performance.
-
-    Args:
-        conn: Database connection
-        df: DataFrame to insert
-
-    Raises:
-        Exception: If bulk insert fails
-    """
-    # Create StringIO buffer
-    output = StringIO()
-
-    # Convert DataFrame to CSV in memory
-    df.to_csv(
-        output,
-        sep="\t",
-        header=False,
-        index=False,
-        na_rep="\\N",  # NULL representation for PostgreSQL
-        date_format="%Y-%m-%d %H:%M:%S",
-    )
-
-    output.seek(0)
-
-    try:
-        with conn.cursor() as cursor:
-            # Use COPY FROM for ultra-fast insertion
-            cursor.copy_expert(
-                COPY_TO_IMPORT_TABLE,
-                output,
-            )
-        conn.commit()
-
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Error in insertion: {e}")
-        raise
-
 
 # function will be called if rebuild_database is True
 def _create_tb_portabilidade_historico() -> bool:
@@ -367,8 +325,7 @@ def _import_single_pip_report_file(
                 chunk_start = time.time()
 
                 # Insert chunk using COPY FROM
-                _bulk_insert_with_copy(conn, chunk_df)
-
+                bulk_insert_with_copy(conn, chunk_df, COPY_TO_IMPORT_TABLE_PORTABILIDADE)
                 chunk_rows = len(chunk_df)
                 total_rows += chunk_rows
                 chunk_time = time.time() - chunk_start

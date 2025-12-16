@@ -42,11 +42,13 @@ Usage:
 """
 
 from asyncio.log import logger
+from io import StringIO
 import os
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict
 
+import pandas as pd
 import psycopg2
 from dotenv import load_dotenv
 
@@ -114,6 +116,7 @@ def get_db_config() -> Dict[str, Any]:
         "database": os.getenv("TELETOOLS_DB_NAME"),
         "user": os.getenv("TELETOOLS_DB_USER"),
         "password": os.getenv("TELETOOLS_DB_PASSWORD"),
+        "application_name": "TeletoolsApp",
     }
 
     return config
@@ -263,7 +266,7 @@ def execute_truncate_table(schema: str, table_name: str, logger: any) -> None:
             raise
 
 
-def execute_drop_table(schema: str, table_name: str, logger: any) -> None:
+def execute_drop_table(schema: str, table_name: str, logger: any = None) -> None:
     """Drop specified table.
 
     Args:
@@ -276,17 +279,64 @@ def execute_drop_table(schema: str, table_name: str, logger: any) -> None:
     """
 
     if not check_if_table_exists(schema, table_name):
-        logger.info(f"Table {schema}.{table_name} does not exist. Skipping dropping.")
+        if logger:
+            logger.info(
+                f"Table {schema}.{table_name} does not exist. Skipping dropping."
+            )
         return
 
     with get_db_connection() as conn:
         try:
             with conn.cursor() as cursor:
-                logger.info(f"Dropping table {schema}.{table_name}...")
+                if logger:
+                    logger.info(f"Dropping table {schema}.{table_name}...")
                 cursor.execute(f"DROP TABLE {schema}.{table_name} CASCADE;")
             conn.commit()
-            logger.info(f"Table {schema}.{table_name} dropped successfully.")
+            if logger:
+                logger.info(f"Table {schema}.{table_name} dropped successfully.")
         except Exception as e:
             conn.rollback()
-            logger.error(f"Error dropping table {schema}.{table_name}: {e}")
+            if logger:
+                logger.error(f"Error dropping table {schema}.{table_name}: {e}")
             raise
+
+
+def bulk_insert_with_copy(conn, df: pd.DataFrame, copy_query) -> None:
+    """
+    Perform bulk insert using PostgreSQL COPY FROM for maximum performance.
+
+    Args:
+        conn: Database connection
+        df: DataFrame to insert
+
+    Raises:
+        Exception: If bulk insert fails
+    """
+    # Create StringIO buffer
+    output = StringIO()
+
+    # Convert DataFrame to CSV in memory
+    df.to_csv(
+        output,
+        sep="\t",
+        header=False,
+        index=False,
+        na_rep="\\N",  # NULL representation for PostgreSQL
+        date_format="%Y-%m-%d %H:%M:%S",
+    )
+
+    output.seek(0)
+
+    try:
+        with conn.cursor() as cursor:
+            # Use COPY FROM for ultra-fast insertion
+            cursor.copy_expert(
+                copy_query,
+                output,
+            )
+        conn.commit()
+
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error in insertion: {e}")
+        raise
