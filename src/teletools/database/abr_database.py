@@ -87,9 +87,14 @@ def query_numbers_carriers(numbers_to_query, reference_date=None):
         Number: 11912345678, Carrier: Tim, Ported: 0
 
     Note:
-        - The temporary table is automatically dropped at transaction end
-        - Duplicate numbers in input are automatically handled (deduplicated)
-        - Results are ordered by phone number (nu_terminal)
+        - Uses a persistent table in IMPORT_SCHEMA instead of TEMP table to avoid
+          session-specific limitations
+        - All operations (create, insert, query, drop) use a single database connection
+          to prevent table locking issues between separate transactions
+        - Table is dropped and recreated at the beginning of each query to ensure
+          clean state
+        - Duplicate numbers in input are automatically handled (deduplicated by PRIMARY KEY)
+        - Results are not necessarily ordered by phone number
         - ind_portado: 1 if number was ported, 0 otherwise
         - ind_designado: 1 if number has numbering plan assignment, 0 otherwise
     """
@@ -120,19 +125,23 @@ def query_numbers_carriers(numbers_to_query, reference_date=None):
     else:
         raise TypeError("reference_date must be date object or string")
 
-    # Prepare DataFrame for cn and prefix extraction
+    # Prepare DataFrame with extracted CN (area code) and prefix for efficient querying
+    # CN: First 2 digits (area code, e.g., '11' for São Paulo)
+    # Prefix: Next 4-5 digits depending on number length (10 or 11 digits)
     df_numbers_to_query = pd.DataFrame(numbers_list, columns=["nu_terminal"]).astype(
         str
     )
     numbers_lenghts = df_numbers_to_query["nu_terminal"].str.len()
 
-    # Extract cn only from numbers with valid lengths (10 or 11 digits)
+    # Extract CN (area code) only from numbers with valid lengths (10 or 11 digits)
+    # Invalid numbers get '-1' to ensure they don't match any valid range
     df_numbers_to_query["cn"] = np.where(
         numbers_lenghts.between(10, 11),
         df_numbers_to_query["nu_terminal"].str[:2],
         "-1",
     )
-    # Extract prefix only from numbers with valid lengths (10 or 11 digits)
+    # Extract prefix: digits 3-6 for 10-digit numbers, digits 3-7 for 11-digit numbers
+    # This allows efficient filtering in the numbering plan table
     df_numbers_to_query["prefixo"] = np.where(
         numbers_lenghts == 10,
         df_numbers_to_query["nu_terminal"].str[2:6],
@@ -141,28 +150,36 @@ def query_numbers_carriers(numbers_to_query, reference_date=None):
         ),
     )
 
-    # SQL query to create temporary table and insert data
+    # SQL to drop and recreate the numbers query table
+    # Using DROP + CREATE instead of TRUNCATE to ensure clean state
+    # CASCADE removes any dependent objects if they exist
     create_temp_table = f"""
         DROP TABLE IF EXISTS {IMPORT_SCHEMA}.{TB_NUMBERS_TO_QUERY} CASCADE;
         CREATE TABLE {IMPORT_SCHEMA}.{TB_NUMBERS_TO_QUERY} (
-            nu_terminal BIGINT PRIMARY KEY,
-            cn SMALLINT,
-            prefixo INTEGER
+            nu_terminal BIGINT PRIMARY KEY,  -- Full phone number
+            cn SMALLINT,                      -- Area code (first 2 digits)
+            prefixo INTEGER                   -- Prefix (next 4-5 digits)
         );
     """
 
+    # COPY command for bulk insert - much faster than individual INSERTs
+    # Uses tab delimiter and \N for NULL values (PostgreSQL standard)
     copy_numbers_to_query = f"""
         COPY {IMPORT_SCHEMA}.{TB_NUMBERS_TO_QUERY} (nu_terminal, cn, prefixo) FROM STDIN WITH CSV DELIMITER E'\\t' NULL '\\N'
     """
     
-    # Main query using the temporary table
+    # Main query to resolve carrier information
+    # Strategy: Check numbering plan first, then portability history
+    # Uses LATERAL joins for correlated subqueries (efficient row-by-row processing)
     query_numbers_carriers = f"""
         SELECT
-            ntq.nu_terminal,
-            tp.nome_prestadora,
-            CASE WHEN up.cod_receptora IS NOT NULL THEN 1 ELSE 0 END AS ind_portado,
-            CASE WHEN tn.cod_prestadora IS NOT NULL THEN 1 ELSE 0 END AS ind_designado
+            ntq.nu_terminal,                                                          -- Phone number
+            tp.nome_prestadora,                                                       -- Carrier name
+            CASE WHEN up.cod_receptora IS NOT NULL THEN 1 ELSE 0 END AS ind_portado, -- 1 if ported
+            CASE WHEN tn.cod_prestadora IS NOT NULL THEN 1 ELSE 0 END AS ind_designado -- 1 if has numbering plan
         FROM {IMPORT_SCHEMA}.{TB_NUMBERS_TO_QUERY} ntq
+        -- Find original carrier from numbering plan
+        -- Filter by CN and prefix first (indexed), then check range
         LEFT JOIN LATERAL (
             SELECT cod_prestadora
             FROM {TARGET_SCHEMA}.{TB_NUMERACAO}
@@ -172,6 +189,7 @@ def query_numbers_carriers(numbers_to_query, reference_date=None):
             AND faixa_final >= ntq.nu_terminal
             LIMIT 1
         ) tn ON true
+        -- Find most recent portability record up to reference date
         LEFT JOIN LATERAL (
             SELECT cod_receptora
             FROM {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} up
@@ -181,33 +199,37 @@ def query_numbers_carriers(numbers_to_query, reference_date=None):
             ORDER BY data_agendamento DESC
             LIMIT 1
         ) up ON true
+        -- Get carrier name: use ported carrier if exists, otherwise original carrier
         LEFT JOIN {TARGET_SCHEMA}.{TB_PRESTADORAS} tp
             ON COALESCE(up.cod_receptora, tn.cod_prestadora) = tp.cod_prestadora;
     """
    
-    # Use a single connection for all operations to avoid lock issues
+    # Use a single connection for all operations to prevent table locking issues
+    # Multiple connections attempting to access the same table can cause locks,
+    # especially with DDL operations (CREATE, DROP). Single connection ensures
+    # all operations are in the same transaction context.
     with get_db_connection() as conn:
         cur = conn.cursor()
 
-        # Create temporary table
+        # Drop and recreate table for clean state
         cur.execute(create_temp_table)
         
-        # Insert numbers into temporary table
+        # Bulk insert phone numbers using PostgreSQL COPY (high performance)
         bulk_insert_with_copy(conn, df_numbers_to_query, copy_numbers_to_query)
         
-        # Commit the creation and insertion before querying
-        # conn.commit()
+        # Note: No explicit commit here - bulk_insert_with_copy commits internally
+        # This ensures data is visible for the query but keeps us in same transaction
 
-        # Execute main query
+        # Execute main carrier resolution query
         cur.execute(query_numbers_carriers, (ref_date,))
 
-        # Get column names from cursor description
+        # Extract column names from cursor metadata
         column_names = tuple([desc[0] for desc in cur.description])
 
-        # Fetch all results
+        # Retrieve all query results
         results = cur.fetchall()
 
-        # Clean up temporary table
+        # Clean up: drop the numbers table to free resources
         cur.execute(f"DROP TABLE IF EXISTS {IMPORT_SCHEMA}.{TB_NUMBERS_TO_QUERY} CASCADE;")
         conn.commit()
 
