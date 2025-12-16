@@ -157,31 +157,32 @@ CREATE_IMPORT_TABLE_SUP = f"""
     """
 
 CREATE_TB_NUMERACAO = f"""
--- Dropar a tabela, se existir
+-- Drop the table if it exists
 DROP TABLE IF EXISTS {IMPORT_SCHEMA}.{TB_NUMERACAO} CASCADE;
--- Criar a tabela otimizada
+-- Create the optimized table
 CREATE TABLE IF NOT EXISTS {TARGET_SCHEMA}.{TB_NUMERACAO} (
-    cn SMALLINT NOT NULL,
-    prefixo INTEGER NOT NULL,
-    faixa_inicial BIGINT NOT NULL,
-    faixa_final BIGINT NOT NULL,
-    codigo_cnl INTEGER NOT NULL,
-    cod_prestadora BIGINT NOT NULL
-) WITH (fillfactor = 100); -- fillfactor=100 para tabelas read-only/poucos updates
+    cn SMALLINT NOT NULL,             -- Area code (first 2 digits)
+    prefixo INTEGER NOT NULL,         -- Prefix (next 4-5 digits)
+    faixa_inicial BIGINT NOT NULL,    -- Range start (full number)
+    faixa_final BIGINT NOT NULL,      -- Range end (full number)
+    codigo_cnl INTEGER NOT NULL,      -- CNL code
+    cod_prestadora BIGINT NOT NULL    -- Provider code (CNPJ)
+) WITH (fillfactor = 100);            -- fillfactor=100 for read-only/rarely updated tables
 
--- Popular a tabela
+-- Populate the table with STFC/SMP/SME data
 INSERT INTO {TARGET_SCHEMA}.{TB_NUMERACAO}
 SELECT
     cn::smallint,
     prefixo::integer, 
-    concat(cn, prefixo, faixa_inicial)::bigint AS faixa_inicial,
-    concat(cn, prefixo, faixa_final)::bigint AS faixa_final,
+    concat(cn, prefixo, faixa_inicial)::bigint AS faixa_inicial,  -- Construct full start number
+    concat(cn, prefixo, faixa_final)::bigint AS faixa_final,      -- Construct full end number
     COALESCE(codigo_cnl, '-1')::int AS codigo_cnl,
     cnpj_prestadora::bigint AS cod_prestadora
 FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_STFC_SMP_SME}
 UNION ALL
+-- Add CNG (non-geographic codes) data
 SELECT
-    -- CNG CN and prefix logical extraction like STFC
+    -- Extract CN and prefix from non-geographic code (similar logic to STFC)
     left(codigo_nao_geografico, 2)::smallint AS cn,
     substring(codigo_nao_geografico from 3 for 4)::integer as prefixo,
     codigo_nao_geografico::bigint AS faixa_inicial,
@@ -189,6 +190,7 @@ SELECT
     -1 AS codigo_cnl,
     cnpj_prestadora::bigint AS cod_prestadora
 FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_CNG};
+-- TODO: SUP data integration (currently commented out)
 -- UNION ALL
 -- SELECT
 --    concat(numero_sup, extensao)::bigint AS faixa_inicial,
@@ -201,11 +203,12 @@ FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_CNG};
 --    cnpj_prestadora::bigint AS cod_prestadora
 -- FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_SUP};
 
--- Criar índice B-tree composto para faixa_inicial e faixa_final
+-- Create composite B-tree index for efficient range lookups
+-- Includes cod_prestadora for index-only scans
 CREATE INDEX idx_{TB_NUMERACAO}_cn_prefixo_faixas 
 ON {TARGET_SCHEMA}.{TB_NUMERACAO} (cn, prefixo, faixa_inicial, faixa_final) 
 INCLUDE (cod_prestadora);
 
--- Atualizar estatísticas para o otimizador de queries
+-- Update statistics for query optimizer
 ANALYZE {TARGET_SCHEMA}.{TB_NUMERACAO};
 """

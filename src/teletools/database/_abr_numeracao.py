@@ -202,7 +202,8 @@ def _bulk_insert_with_copy(conn, df: pd.DataFrame, file_config: dict) -> None:
     Perform high-performance bulk insert using PostgreSQL COPY FROM.
 
     Converts DataFrame to tab-delimited format in memory and uses PostgreSQL's
-    COPY FROM command for optimal insertion speed.
+    COPY FROM command for optimal insertion speed. This method is significantly
+    faster than individual INSERT statements, especially for large datasets.
 
     Args:
         conn: Active PostgreSQL database connection
@@ -211,6 +212,11 @@ def _bulk_insert_with_copy(conn, df: pd.DataFrame, file_config: dict) -> None:
 
     Raises:
         Exception: If data conversion or database insertion fails
+
+    Note:
+        - Uses tab delimiter and \\N for NULL values (PostgreSQL standard)
+        - Commits transaction after successful copy operation
+        - Rolls back on error to maintain data consistency
     """
 
     # Get table name from file configuration
@@ -234,7 +240,8 @@ def _bulk_insert_with_copy(conn, df: pd.DataFrame, file_config: dict) -> None:
 
     try:
         with conn.cursor() as cursor:
-            # Use COPY FROM for ultra-fast insertion
+            # Use PostgreSQL COPY FROM for ultra-fast bulk insertion
+            # Tab-delimited format with \N representing NULL values
             cursor.copy_expert(
                 f"""
                 COPY {IMPORT_SCHEMA}.{table_name} ({copy_columns})
@@ -242,96 +249,12 @@ def _bulk_insert_with_copy(conn, df: pd.DataFrame, file_config: dict) -> None:
                 """,
                 output,
             )
+        # Commit transaction to persist data
         conn.commit()
 
     except Exception as e:
         conn.rollback()
         logger.error(f"Error in insertion: {e}")
-        raise
-
-
-def _create_import_table_stfc_smp_sme_if_not_exists(
-    conn,
-) -> None:
-    """
-    Create staging table for STFC/SMP/SME data if it doesn't exist.
-
-    Creates the entrada.abr_numeracao table with all columns needed for
-    fixed and mobile telephony numbering data.
-
-    Args:
-        conn: Active PostgreSQL database connection
-
-    Raises:
-        Exception: If table creation fails
-    """
-
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute(CREATE_IMPORT_TABLE_STFC_SMP_SME)
-        conn.commit()
-        logger.info(
-            f"Table {IMPORT_SCHEMA}.{IMPORT_TABLE_STFC_SMP_SME} created/verified successfully"
-        )
-    except Exception as e:
-        conn.rollback()
-        logger.error(
-            f"Error creating table {IMPORT_SCHEMA}.{IMPORT_TABLE_STFC_SMP_SME}: {e}"
-        )
-        raise
-
-
-def _create_import_table_cng_if_not_exists(conn) -> None:
-    """
-    Create staging table for CNG (non-geographic codes) data if it doesn't exist.
-
-    Creates the entrada.abr_cng table for importing free call numbers
-    (0800, 0300, etc.) and other non-geographic codes.
-
-    Args:
-        conn: Active PostgreSQL database connection
-
-    Raises:
-        Exception: If table creation fails
-    """
-
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute(CREATE_IMPORT_TABLE_CNG)
-        conn.commit()
-        logger.info(
-            f"Table {IMPORT_SCHEMA}.{IMPORT_TABLE_CNG} created/verified successfully"
-        )
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Error creating table {IMPORT_SCHEMA}.{IMPORT_TABLE_CNG}: {e}")
-        raise
-
-
-def _create_import_table_sup_if_not_exists(conn) -> None:
-    """
-    Create staging table for SUP (public utility services) data if it doesn't exist.
-
-    Creates the entrada.abr_sup table for importing public utility service
-    numbering data.
-
-    Args:
-        conn: Active PostgreSQL database connection
-
-    Raises:
-        Exception: If table creation fails
-    """
-
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute(CREATE_IMPORT_TABLE_SUP)
-        conn.commit()
-        logger.info(
-            f"  Table {IMPORT_SCHEMA}.{IMPORT_TABLE_SUP} created/verified successfully"
-        )
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Error creating table {IMPORT_SCHEMA}.{IMPORT_TABLE_SUP}: {e}")
         raise
 
 
@@ -359,6 +282,7 @@ def _import_single_file(
 
     logger.info(f"Starting import of file {file}.")
 
+    # Detect file type and get appropriate configuration
     if file_config := _get_file_config(file):
         file_type = file_config["file_type"]
         table_name = file_config["table_name"]
@@ -372,11 +296,12 @@ def _import_single_file(
 
     try:
         with get_db_connection() as conn:
-            # Process file in chunks
+            # Process file in memory-efficient chunks to handle large files
             chunk_count = 0
             for chunk in _read_file_in_chunks(file, file_config, chunk_size=CHUNK_SIZE):
                 chunk_count += 1
                 rows_in_chunk = len(chunk)
+                # Bulk insert using PostgreSQL COPY for maximum performance
                 _bulk_insert_with_copy(conn, chunk, file_config)
                 total_rows += rows_in_chunk
                 logger.info(
@@ -460,10 +385,12 @@ def _import_multiple_files(
 
     total_time = time.time() - start_time_total
 
-    # Final report
-    sucessos = sum(1 for r in results.values() if r["status"] == "success")
-    erros = len(results) - sucessos
+    # Generate final import statistics report
+    successes = sum(1 for r in results.values() if r["status"] == "success")
+    errors = len(results) - successes
     total_rows_all_files_str = f"{total_rows_all_files:,}".replace(",", ".")
+
+    # Format time for display (seconds, minutes, or hours)
     if total_time < 60:
         total_time_str = f"{total_time:.2f}s".replace(".", ",")
     elif total_time < 3600:
@@ -475,18 +402,21 @@ def _import_multiple_files(
         minutes = int((total_time % 3600) // 60)
         seconds = total_time % 60
         total_time_str = f"{hours}h {minutes}m {seconds:.2f}s".replace(".", ",")
+
     avg_speed_str = f"{total_rows_all_files / total_time:,.0f}".replace(",", ".")
 
+    # Log comprehensive import summary
     logger.info("File import report")
     logger.info("══════════════════")
     logger.info(f"📊 Files processed: {len(file_list)}")
-    logger.info(f"✅ Successes: {sucessos}")
-    logger.info(f"❌ Errors: {erros}")
+    logger.info(f"✅ Successes: {successes}")
+    logger.info(f"❌ Errors: {errors}")
     logger.info(f"📈 Total rows: {total_rows_all_files_str}")
-    logger.info(f"⏱️ Total time: {total_time_str}s")
+    logger.info(f"⏱️ Total time: {total_time_str}")
     logger.info(f"🚀 Average speed: {avg_speed_str} rows/s")
 
-    if erros > 0:
+    # List files that failed to import
+    if errors > 0:
         logger.info("Files with errors:")
         for file_name, stats in results.items():
             if stats["status"] == "error":
@@ -640,7 +570,8 @@ def load_nsapn_files(input_path: str, drop_table: bool = False) -> dict:
         logger.warning("No files found to import.")
         return {}
 
-    # Ensure import tables exist and are empty before import
+    # Prepare staging tables: create if not exists, then truncate for clean import
+    # Tables are processed in sequence to handle any potential dependencies
     import_table_sequence = [
         IMPORT_TABLE_CNG,
         IMPORT_TABLE_SUP,
@@ -648,6 +579,7 @@ def load_nsapn_files(input_path: str, drop_table: bool = False) -> dict:
     ]
 
     for table in import_table_sequence:
+        # Create table with appropriate schema for file type
         execute_create_table(
             IMPORT_SCHEMA,
             table,
@@ -658,14 +590,19 @@ def load_nsapn_files(input_path: str, drop_table: bool = False) -> dict:
             }[table],
             logger,
         )
+        # Clear any existing data to ensure clean import
         execute_truncate_table(IMPORT_SCHEMA, table, logger)
 
+    # Import all files with progress tracking and error handling
     results = _import_multiple_files(files_to_import)
 
+    # Consolidate staging data into final optimized table
     _create_tb_numeracao()
 
+    # Update provider reference table with any new carriers
     update_table_prestadoras()
 
+    # Optionally drop staging tables to free space (if requested)
     if drop_table:
         for table in import_table_sequence:
             execute_drop_table(IMPORT_SCHEMA, table, logger)
