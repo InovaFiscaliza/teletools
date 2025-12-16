@@ -62,43 +62,58 @@ def _read_file_in_chunks(
     file: Path, chunk_size: int = CHUNK_SIZE
 ) -> Iterator[pd.DataFrame]:
     """
-    Read CSV file in chunks to optimize memory usage.
+    Read CSV file in chunks for memory-efficient processing.
+
+    Reads semicolon-delimited CSV files from ABR PIP reports in configurable
+    chunks to handle large files without memory overflow. Automatically parses
+    date columns and optimizes data types using pandas categories.
 
     Args:
-        file: Path to the file
-        chunk_size: Size of each chunk
+        file: Path to the CSV/compressed file to read (supports .csv.gz)
+        chunk_size: Number of rows per chunk (default from CHUNK_SIZE constant)
 
     Yields:
-        pd.DataFrame: Data chunk with filename column added
+        pd.DataFrame: Data chunk with processed data types and added filename column
 
     Raises:
-        Exception: If file reading fails
+        Exception: If file reading or parsing fails
+
+    Note:
+        - Uses Latin-1 encoding for Brazilian Portuguese characters
+        - Parses dates in DD/MM/YYYY HH:MM:SS format
+        - Applies categorical types for memory optimization
+        - Adds 'nome_arquivo' column to track data source
     """
+    # Column definitions from ABR PIP system reports
+    # Maps to official PIP layout structure
     names = [
-        "tipo_registro",
-        "numero_bp",
-        "tn_inicial",
-        "cod_receptora",
-        "nome_receptora",
-        "cod_doadora",
-        "nome_doadora",
-        "data_agendamento",
-        "cod_status",
-        "status",
-        "ind_portar_origem",
+        "tipo_registro",        # Record type identifier
+        "numero_bp",            # BP number (portability request ID)
+        "tn_inicial",           # Initial phone number
+        "cod_receptora",        # Receiving carrier code
+        "nome_receptora",       # Receiving carrier name
+        "cod_doadora",          # Donor carrier code
+        "nome_doadora",         # Donor carrier name
+        "data_agendamento",     # Scheduled date for portability
+        "cod_status",           # Status code
+        "status",               # Status description
+        "ind_portar_origem",    # Indicator to port back to origin
     ]
 
+    # Optimize data types for memory efficiency
+    # Use categories for low-cardinality columns (tipo_registro, status)
+    # Use appropriate integer sizes to minimize memory footprint
     dtype = {
-        "tipo_registro": "category",
-        "numero_bp": "int",
-        "tn_inicial": "int",
-        "cod_receptora": "str",
-        "nome_receptora": "str",
-        "cod_doadora": "str",
-        "nome_doadora": "str",
-        "cod_status": "int",
-        "status": "category",
-        "ind_portar_origem": "str",
+        "tipo_registro": "category",   # Limited set of record types
+        "numero_bp": "int",            # BP request number
+        "tn_inicial": "int",           # Phone number as integer
+        "cod_receptora": "str",        # Carrier code (may have leading zeros)
+        "nome_receptora": "str",       # Carrier name text
+        "cod_doadora": "str",          # Carrier code (may have leading zeros)
+        "nome_doadora": "str",         # Carrier name text
+        "cod_status": "int",           # Status code number
+        "status": "category",          # Limited set of status values
+        "ind_portar_origem": "str",    # "Sim" or "Nao" values
     }
 
     try:
@@ -128,22 +143,33 @@ def _process_chunk(df: pd.DataFrame) -> pd.DataFrame:
     """
     Process a data chunk by applying optimized transformations.
 
+    Performs data cleaning and type optimization on portability records:
+    - Converts text indicators to numeric flags (0/1)
+    - Optimizes carrier codes to appropriate integer types
+    - Removes records with missing critical identifiers
+
     Args:
         df: DataFrame chunk to process
 
     Returns:
-        pd.DataFrame: Processed DataFrame with optimized data types
+        pd.DataFrame: Processed DataFrame with optimized data types and cleaned data
+
+    Note:
+        - Maps "Sim"/"Nao" to 1/0 for boolean indicator
+        - Converts carrier codes to Int32 (nullable integer)
+        - Drops rows missing numero_bp or tn_inicial (required fields)
     """
 
-    # Optimized mapping using categorical
+    # Map Portuguese boolean text to numeric flags for database efficiency
     map_ind_portar_origem = {"Sim": 1, "Nao": 0}
 
-    # Apply mapping efficiently
+    # Apply mapping efficiently using pandas map function
     df["ind_portar_origem"] = (
         df["ind_portar_origem"].map(map_ind_portar_origem).astype("int8")
     )
 
-    # Optimize data types
+    # Convert carrier codes to numeric, handling missing values gracefully
+    # Int32 (capital I) allows NULL values, unlike int32
     df["cod_receptora"] = pd.to_numeric(df["cod_receptora"], errors="coerce").astype(
         "Int32"
     )
@@ -152,7 +178,8 @@ def _process_chunk(df: pd.DataFrame) -> pd.DataFrame:
     )
     df["cod_status"] = pd.to_numeric(df["cod_status"], errors="coerce").astype("Int16")
 
-    # Remove rows with missing critical data
+    # Remove rows with missing critical identifiers
+    # Both numero_bp and tn_inicial are required for portability tracking
     df = df.dropna(subset=["numero_bp", "tn_inicial"])
 
     return df
@@ -318,13 +345,13 @@ def _import_single_pip_report_file(
 
     try:
         with get_db_connection() as conn:
-            # Process file in chunks
+            # Process file in memory-efficient chunks to handle large datasets
             chunk_count = 0
             for chunk_df in _read_file_in_chunks(file):
                 chunk_count += 1
                 chunk_start = time.time()
 
-                # Insert chunk using COPY FROM
+                # Bulk insert using PostgreSQL COPY for maximum performance
                 bulk_insert_with_copy(conn, chunk_df, COPY_TO_IMPORT_TABLE_PORTABILIDADE)
                 chunk_rows = len(chunk_df)
                 total_rows += chunk_rows
@@ -387,15 +414,17 @@ def _import_multiple_pip_reports_files(
     results = {}
     total_rows_all_files = 0
 
-    # Ensure import table exists and is empty before first file
+    # Prepare staging table: create if not exists, then truncate for clean import
     execute_create_table(
         IMPORT_SCHEMA,
         IMPORT_TABLE_PORTABILIDADE,
         CREATE_IMPORT_TABLE_PORTABILIDADE,
         logger,
     )
+    # Clear any existing data to ensure clean import state
     execute_truncate_table(IMPORT_SCHEMA, IMPORT_TABLE_PORTABILIDADE, logger)
 
+    # Process each file sequentially with progress tracking
     for idx, file in enumerate(file_list, 1):
         logger.info(f"📁 Processing file {idx}/{len(file_list)}:")
 
@@ -425,10 +454,12 @@ def _import_multiple_pip_reports_files(
 
     total_time = time.time() - start_time_total
 
-    # Final report
+    # Generate comprehensive import statistics report
     successes = sum(1 for r in results.values() if r["status"] == "success")
     errors = len(results) - successes
     total_rows_all_files_str = f"{total_rows_all_files:,}".replace(",", ".")
+    
+    # Format time for human-readable display (seconds, minutes, or hours)
     if total_time < 60:
         total_time_str = f"{total_time:.2f}s".replace(".", ",")
     elif total_time < 3600:
@@ -440,17 +471,20 @@ def _import_multiple_pip_reports_files(
         minutes = int((total_time % 3600) // 60)
         seconds = total_time % 60
         total_time_str = f"{hours}h {minutes}m {seconds:.2f}s".replace(".", ",")
+    
     avg_speed_str = f"{total_rows_all_files / total_time:,.0f}".replace(",", ".")
 
+    # Log comprehensive import summary with statistics
     logger.info("File import report")
     logger.info("══════════════════")
     logger.info(f"📊 Files processed: {len(file_list)}")
     logger.info(f"✅ Successes: {successes}")
     logger.info(f"❌ Errors: {errors}")
     logger.info(f"📈 Total rows: {total_rows_all_files_str}")
-    logger.info(f"🕑 Total time: {total_time_str}s")
+    logger.info(f"🕑 Total time: {total_time_str}")
     logger.info(f"🚀 Average speed: {avg_speed_str} rows/s")
 
+    # List files that encountered errors during import
     if errors > 0:
         logger.info("Files with errors:")
         for file_name, stats in results.items():
@@ -526,27 +560,32 @@ def load_pip_reports(
         logger.warning(f"No CSV (*.csv.gz) files found in {input_path}")
         return {}
 
-    # import pip files to staging table
+    # Step 1: Import all PIP report files to staging table
     results = _import_multiple_pip_reports_files(files_to_import)
 
-    # rebuild target table/indexes if requested
+    # Step 2: Rebuild target table/indexes if requested (for fresh database setup)
     if rebuild_database:
         _drop_tb_portabilidade_historico()
         _create_tb_portabilidade_historico()
     elif rebuild_indexes:
+        # Only rebuild indexes (useful after large data imports)
         _drop_tb_portabilidade_historico_indexes()
 
-    # if table was just created, we need to create indexes as well
+    # Step 3: Create indexes if table was just created (always needed for new tables)
     if not check_if_table_exists(TARGET_SCHEMA, TB_PORTABILIDADE_HISTORICO):
         rebuild_indexes = _create_tb_portabilidade_historico()
 
+    # Step 4: Transfer data from staging to partitioned history table (upsert)
     _update_tb_portabilidade_historico()
 
+    # Step 5: Rebuild indexes if requested or if table was newly created
     if rebuild_indexes or rebuild_database:
         _create_tb_portabilidade_historico_indexes()
 
+    # Step 6: Update provider reference table with any new carriers found
     update_table_prestadoras()
 
+    # Step 7: Optionally drop staging table to free disk space
     if drop_table:
         execute_drop_table(IMPORT_SCHEMA, IMPORT_TABLE_PORTABILIDADE, logger)
 
