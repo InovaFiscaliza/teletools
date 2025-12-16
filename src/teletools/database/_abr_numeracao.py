@@ -101,7 +101,6 @@ from ._database_config import (
     CHUNK_SIZE,
     TARGET_SCHEMA,
     TB_NUMERACAO,
-    check_if_table_exists,
     execute_create_table,
     execute_drop_table,
     execute_truncate_table,
@@ -509,8 +508,6 @@ def _create_tb_numeracao() -> None:
     with get_db_connection() as conn:
         try:
             logger.info(f"Updating {TARGET_SCHEMA}.{TB_NUMERACAO} table...")
-            if check_if_table_exists(TARGET_SCHEMA, TB_NUMERACAO):
-                execute_drop_table(TARGET_SCHEMA, TB_NUMERACAO, logger)
             conn.cursor().execute(CREATE_TB_NUMERACAO)
             conn.commit()
             logger.info(f"Table {TARGET_SCHEMA}.{TB_NUMERACAO} updated successfully")
@@ -642,14 +639,14 @@ def load_nsapn_files(input_path: str, drop_table: bool = False) -> dict:
     if not files_to_import:
         logger.warning("No files found to import.")
         return {}
-    
+
     # Ensure import tables exist and are empty before import
     import_table_sequence = [
-            IMPORT_TABLE_CNG,
-            IMPORT_TABLE_SUP,
-            IMPORT_TABLE_STFC_SMP_SME,
-        ]
-    
+        IMPORT_TABLE_CNG,
+        IMPORT_TABLE_SUP,
+        IMPORT_TABLE_STFC_SMP_SME,
+    ]
+
     for table in import_table_sequence:
         execute_create_table(
             IMPORT_SCHEMA,
