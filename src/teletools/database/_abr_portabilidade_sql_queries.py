@@ -109,27 +109,28 @@ CREATE TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (
     nome_arquivo VARCHAR(255),
     PRIMARY KEY (cn, tn_inicial, data_agendamento)
 ) 
-PARTITION BY LIST (cn);
+PARTITION BY RANGE (cn);
 
--- Partition 1: CN 11
-CREATE TABLE {TB_PORTABILIDADE_HISTORICO}_cn_11
-    PARTITION OF {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}
-    FOR VALUES IN (11);
+-- Create partitions for specific CN ranges
+CREATE TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_11
+PARTITION OF {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}
+FOR VALUES FROM (11) TO (12);
 
--- Partition 2: CN 12 to 28
-CREATE TABLE {TB_PORTABILIDADE_HISTORICO}_cn_12_28
-    PARTITION OF {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}
-    FOR VALUES IN (12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 27, 28);
+CREATE TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_12_20
+PARTITION OF {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}
+FOR VALUES FROM (12) TO (21);
 
--- Partition 3: CN 30 to 55 (CN 30 includes prefixes 300 and 303)
-CREATE TABLE {TB_PORTABILIDADE_HISTORICO}_cn_30_55
-    PARTITION OF {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}
-    FOR VALUES IN (30, 31, 32, 33, 34, 35, 37, 38, 41, 42, 43, 44, 45, 46, 47, 48, 49, 51, 53, 54, 55);
+CREATE TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_21_40
+PARTITION OF {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}
+FOR VALUES FROM (21) TO (41);
 
--- Partition 4: CN 61 to 99 (CN 80 includes prefix 800)
-CREATE TABLE {TB_PORTABILIDADE_HISTORICO}_cn_61_99
-    PARTITION OF {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}
-    FOR VALUES IN (61, 62, 63, 64, 65, 66, 67, 68, 69, 71, 73, 74, 75, 77, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 91, 92, 93, 94, 95, 96, 97, 98, 99);
+CREATE TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_41_70
+PARTITION OF {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}
+FOR VALUES FROM (41) TO (71);
+
+CREATE TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_71_99
+PARTITION OF {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}
+FOR VALUES FROM (71) TO (100);
 
 -- DEFAULT partition for unidentified or invalid CNs
 CREATE TABLE {TB_PORTABILIDADE_HISTORICO}_cn_default
@@ -140,15 +141,16 @@ CREATE TABLE {TB_PORTABILIDADE_HISTORICO}_cn_default
 
 DROP_TB_PORTABILIDADE_HISTORICO_INDEXES = f"""
 -- Drop all indexes for tb_portabilidade_historico table
-DROP INDEX IF EXISTS idx_{TB_PORTABILIDADE_HISTORICO}_tn_data;
+DROP INDEX IF EXISTS idx_{TB_PORTABILIDADE_HISTORICO}_cn_tn_data;
 """
 
 CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES = f"""
 -- Create all indexes for tb_portabilidade_historico table
-DROP INDEX IF EXISTS idx_{TB_PORTABILIDADE_HISTORICO}_tn_data;
+DROP INDEX IF EXISTS idx_{TB_PORTABILIDADE_HISTORICO}_cn_tn_data;
 
-CREATE INDEX idx_{TB_PORTABILIDADE_HISTORICO}_tn_data 
-ON {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (tn_inicial, data_agendamento DESC);
+CREATE INDEX idx_{TB_PORTABILIDADE_HISTORICO}_cn_tn_data 
+ON {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} (cn, tn_inicial, data_agendamento DESC)
+INCLUDE (cod_receptora);
 
 -- Storage settings for optimization
 ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_11 SET (
@@ -158,21 +160,28 @@ ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_11 SET (
     autovacuum_analyze_scale_factor = 0.02
 );
 
-ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_12_28 SET (
+ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_12_20 SET (
     fillfactor = 100,  -- 100% fillfactor because this is a history table (insert only)
     autovacuum_enabled = true,
     autovacuum_vacuum_scale_factor = 0.05,
     autovacuum_analyze_scale_factor = 0.02
 );
 
-ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_30_55 SET (
+ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_21_40 SET (
     fillfactor = 100,  -- 100% fillfactor because this is a history table (insert only)
     autovacuum_enabled = true,
     autovacuum_vacuum_scale_factor = 0.05,
     autovacuum_analyze_scale_factor = 0.02
 );
 
-ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_61_99 SET (
+ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_41_70 SET (
+    fillfactor = 100,  -- 100% fillfactor because this is a history table (insert only)
+    autovacuum_enabled = true,
+    autovacuum_vacuum_scale_factor = 0.05,
+    autovacuum_analyze_scale_factor = 0.02
+);
+
+ALTER TABLE {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO}_cn_71_99 SET (
     fillfactor = 100,  -- 100% fillfactor because this is a history table (insert only)
     autovacuum_enabled = true,
     autovacuum_vacuum_scale_factor = 0.05,

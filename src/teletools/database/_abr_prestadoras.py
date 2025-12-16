@@ -23,8 +23,7 @@ UPDATE_TB_PRESTADORAS_FROM_TB_PORTABILIDADE = f"""
 
 INSERT INTO {TARGET_SCHEMA}.{TB_PRESTADORAS} (cod_prestadora, nome_prestadora)
 WITH prestadoras AS (
-    -- Combine all unique carriers (recipient and donor)
-    -- Replace NULL with -1 and consolidate into a single record
+    -- Sua CTE original (agora chamada prestadoras_brutas)
     SELECT DISTINCT
         COALESCE(cod_receptora, -1) AS cod_prestadora,
         CASE
@@ -33,7 +32,6 @@ WITH prestadoras AS (
         END AS nome_prestadora
     FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}
     WHERE cod_receptora IS NOT NULL OR nome_receptora IS NOT NULL
-
     UNION
     SELECT DISTINCT
         COALESCE(cod_doadora, -1) AS cod_prestadora,
@@ -43,15 +41,24 @@ WITH prestadoras AS (
         END AS nome_prestadora
     FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_PORTABILIDADE}
     WHERE cod_doadora IS NOT NULL OR nome_doadora IS NOT NULL
-
     UNION
-    -- Explicitly add the record for unidentified carriers
+    -- Adicionar explicitamente o registro -1
     SELECT -1 AS cod_prestadora, 'NÃO IDENTIFICADO' AS nome_prestadora
+),
+prestadoras_unicas AS (
+    -- Consolidar e garantir que só haja um nome por código
+    SELECT 
+        cod_prestadora,
+        -- Escolhe o "melhor" nome (o último em ordem alfabética, ou você pode usar 
+        -- uma lógica mais complexa se houver muitos nomes divergentes)
+        MAX(nome_prestadora) AS nome_prestadora_consolidado
+    FROM prestadoras
+    GROUP BY cod_prestadora
 )
 SELECT 
     pn.cod_prestadora,
-    pn.nome_prestadora
-FROM prestadoras pn
+    pn.nome_prestadora_consolidado
+FROM prestadoras_unicas pn
 ON CONFLICT (cod_prestadora) 
 DO UPDATE SET 
     nome_prestadora = EXCLUDED.nome_prestadora

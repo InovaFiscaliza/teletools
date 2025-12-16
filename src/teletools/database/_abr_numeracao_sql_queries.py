@@ -159,9 +159,10 @@ CREATE_IMPORT_TABLE_SUP = f"""
 CREATE_TB_NUMERACAO = f"""
 -- Criar a tabela otimizada
 CREATE TABLE IF NOT EXISTS {TARGET_SCHEMA}.{TB_NUMERACAO} (
+    cn SMALLINT NOT NULL,
+    prefixo INTEGER NOT NULL,
     faixa_inicial BIGINT NOT NULL,
     faixa_final BIGINT NOT NULL,
-    cn SMALLINT NOT NULL,
     codigo_cnl INTEGER NOT NULL,
     cod_prestadora BIGINT NOT NULL
 ) WITH (fillfactor = 100); -- fillfactor=100 para tabelas read-only/poucos updates
@@ -169,35 +170,39 @@ CREATE TABLE IF NOT EXISTS {TARGET_SCHEMA}.{TB_NUMERACAO} (
 -- Popular a tabela
 INSERT INTO {TARGET_SCHEMA}.{TB_NUMERACAO}
 SELECT
+    cn::smallint,
+    prefixo::integer, 
     concat(cn, prefixo, faixa_inicial)::bigint AS faixa_inicial,
     concat(cn, prefixo, faixa_final)::bigint AS faixa_final,
-    cn::smallint,
     COALESCE(codigo_cnl, '-1')::int AS codigo_cnl,
     cnpj_prestadora::bigint AS cod_prestadora
 FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_STFC_SMP_SME}
 UNION ALL
 SELECT
+    -- CNG CN and prefix logical extraction like STFC
+    left(codigo_nao_geografico, 2)::smallint AS cn,
+    substring(codigo_nao_geografico from 3 for 4)::integer as prefixo,
     codigo_nao_geografico::bigint AS faixa_inicial,
     codigo_nao_geografico::bigint AS faixa_final,
-    -1 AS cn,
     -1 AS codigo_cnl,
     cnpj_prestadora::bigint AS cod_prestadora
-FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_CNG}
-UNION ALL
-SELECT
-    concat(numero_sup, extensao)::bigint AS faixa_inicial,
-    concat(numero_sup, extensao)::bigint AS faixa_final,
-    CASE
-        WHEN cn = 'Todos' THEN -1
-        ELSE cn::smallint
-    END AS cn,
-    -1 AS codigo_cnl,
-    cnpj_prestadora::bigint AS cod_prestadora
-FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_SUP};
+FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_CNG};
+-- UNION ALL
+-- SELECT
+--    concat(numero_sup, extensao)::bigint AS faixa_inicial,
+--    concat(numero_sup, extensao)::bigint AS faixa_final,
+--    CASE
+--        WHEN cn = 'Todos' THEN -1
+--        ELSE cn::smallint
+--    END AS cn,
+--    -1 AS codigo_cnl,
+--    cnpj_prestadora::bigint AS cod_prestadora
+-- FROM {IMPORT_SCHEMA}.{IMPORT_TABLE_SUP};
 
 -- Criar índice B-tree composto para faixa_inicial e faixa_final
-CREATE INDEX idx_{TB_NUMERACAO}_faixas 
-ON {TARGET_SCHEMA}.{TB_NUMERACAO} USING btree (faixa_inicial DESC, faixa_final);
+CREATE INDEX idx_{TB_NUMERACAO}_cn_prefixo_faixas 
+ON {TARGET_SCHEMA}.{TB_NUMERACAO} (cn, prefixo, faixa_inicial, faixa_final) 
+INCLUDE (cod_prestadora);
 
 -- Atualizar estatísticas para o otimizador de queries
 ANALYZE {TARGET_SCHEMA}.{TB_NUMERACAO};
