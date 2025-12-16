@@ -5,10 +5,11 @@ stored in PostgreSQL database. It offers convenient interfaces to query phone
 number information, including carrier assignments and portability status.
 
 The module supports:
-    - Bulk phone number queries with efficient temporary table handling
+    - Bulk phone number queries with efficient persistent staging table handling
     - Historical portability data lookup at specific reference dates
     - Automatic carrier resolution considering both numbering plan and portability
     - Structured result sets with column headers for easy data processing
+    - Single-connection architecture to prevent table locking issues
 
 Typical usage:
     from teletools.database.abr_database import query_numbers_carriers
@@ -18,8 +19,14 @@ Typical usage:
     result = query_numbers_carriers(numbers, reference_date='2024-12-15')
 
     # Access column names and data
-    columns = result['columns']  # ('nu_terminal', 'nome_prestadora', ...)
-    data = result['results']     # List of tuples with query results
+    columns = result['column_names']  # ('nu_terminal', 'nome_prestadora', ...)
+    data = result['results']          # List of tuples with query results
+
+Architecture:
+    - Uses persistent staging table (entrada.teletools_numbers_to_query) for queries
+    - Single database connection for all operations to avoid lock contention
+    - Table is dropped and recreated for each query batch to ensure clean state
+    - Efficient bulk insert using PostgreSQL COPY command
 """
 
 from datetime import date, datetime
@@ -45,13 +52,20 @@ def query_numbers_carriers(numbers_to_query, reference_date=None):
 
     This function retrieves current carrier information for multiple phone numbers,
     considering both the original numbering plan assignment and any portability
-    operations that occurred up to the specified reference date. It uses a temporary
-    table for efficient bulk querying and returns structured results with column headers.
+    operations that occurred up to the specified reference date. It uses a persistent
+    staging table for efficient bulk querying and returns structured results with
+    column headers.
 
     The query resolves the actual carrier by:
         1. Finding the numbering plan assignment based on number ranges
         2. Checking for portability operations up to the reference date
         3. Returning the receiving carrier if ported, otherwise the original carrier
+
+    Architecture:
+        - Uses a single database connection for all operations (create, insert, query, drop)
+        - Employs PostgreSQL COPY command for high-performance bulk insert
+        - Staging table (entrada.teletools_numbers_to_query) is recreated for each batch
+        - Prevents lock contention by avoiding multiple concurrent connections
 
     Args:
         numbers_to_query (iterable): List or iterable of phone numbers to query.
@@ -67,7 +81,7 @@ def query_numbers_carriers(numbers_to_query, reference_date=None):
 
     Returns:
         dict: Dictionary with two keys:
-            - 'columns' (tuple): Column names as tuple of strings
+            - 'column_names' (tuple): Column names as tuple of strings
                 (nu_terminal, nome_prestadora, ind_portado, ind_designado)
             - 'results' (list): List of tuples containing the query results,
                 where each tuple represents one phone number's data
@@ -79,7 +93,7 @@ def query_numbers_carriers(numbers_to_query, reference_date=None):
     Example:
         >>> numbers = [11987654321, 11912345678]
         >>> result = query_numbers_carriers(numbers, '2024-12-15')
-        >>> print(result['columns'])
+        >>> print(result['column_names'])
         ('nu_terminal', 'nome_prestadora', 'ind_portado', 'ind_designado')
         >>> for row in result['results']:
         ...     print(f"Number: {row[0]}, Carrier: {row[1]}, Ported: {row[2]}")
