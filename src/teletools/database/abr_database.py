@@ -24,7 +24,19 @@ Typical usage:
 
 from datetime import date, datetime
 
-from teletools.database._database_config import get_db_connection
+import numpy as np
+import pandas as pd
+
+from teletools.database._database_config import (
+    IMPORT_SCHEMA,
+    TARGET_SCHEMA,
+    TB_NUMBERS_TO_QUERY,
+    TB_NUMERACAO,
+    TB_PORTABILIDADE_HISTORICO,
+    TB_PRESTADORAS,
+    bulk_insert_with_copy,
+    get_db_connection,
+)
 
 
 def query_numbers_carriers(numbers_to_query, reference_date=None):
@@ -83,11 +95,11 @@ def query_numbers_carriers(numbers_to_query, reference_date=None):
     """
     # Validate that numbers_to_query is iterable and not empty
     try:
-        numbers_list = list(numbers_to_query)
+        numbers_list = np.array(numbers_to_query, dtype=str)
     except TypeError:
         raise TypeError("numbers_to_query must be a list or iterable")
 
-    if not numbers_list:
+    if not numbers_list.size:
         raise ValueError("numbers_to_query cannot be empty")
 
     # Normalize input to date object
@@ -108,58 +120,86 @@ def query_numbers_carriers(numbers_to_query, reference_date=None):
     else:
         raise TypeError("reference_date must be date object or string")
 
+    # Prepare DataFrame for cn and prefix extraction
+    df_numbers_to_query = pd.DataFrame(numbers_list, columns=["nu_terminal"]).astype(
+        str
+    )
+    numbers_lenghts = df_numbers_to_query["nu_terminal"].str.len()
+
+    # Extract cn only from numbers with valid lengths (10 or 11 digits)
+    df_numbers_to_query["cn"] = np.where(
+        numbers_lenghts.between(10, 11),
+        df_numbers_to_query["nu_terminal"].str[:2],
+        "-1",
+    )
+    # Extract prefix only from numbers with valid lengths (10 or 11 digits)
+    df_numbers_to_query["prefixo"] = np.where(
+        numbers_lenghts == 10,
+        df_numbers_to_query["nu_terminal"].str[2:6],
+        np.where(
+            numbers_lenghts == 11, df_numbers_to_query["nu_terminal"].str[2:7], "-1"
+        ),
+    )
+
     # SQL query to create temporary table and insert data
-    create_temp_table = """
-        CREATE TEMP TABLE IF NOT EXISTS temp_numbers_query (
-            nu_terminal BIGINT PRIMARY KEY
-        ) ON COMMIT DROP
+    create_temp_table = f"""
+        DROP TABLE IF EXISTS {IMPORT_SCHEMA}.{TB_NUMBERS_TO_QUERY} CASCADE;
+        CREATE TABLE {IMPORT_SCHEMA}.{TB_NUMBERS_TO_QUERY} (
+            nu_terminal BIGINT PRIMARY KEY,
+            cn SMALLINT,
+            prefixo INTEGER
+        );
     """
 
-    insert_numbers = """
-        INSERT INTO temp_numbers_query (nu_terminal) VALUES (%s)
-        ON CONFLICT (nu_terminal) DO NOTHING
+    copy_numbers_to_query = f"""
+        COPY {IMPORT_SCHEMA}.{TB_NUMBERS_TO_QUERY} (nu_terminal, cn, prefixo) FROM STDIN WITH CSV DELIMITER E'\\t' NULL '\\N'
     """
-
+    
     # Main query using the temporary table
-    query = """
+    query_numbers_carriers = f"""
         SELECT
             ntq.nu_terminal,
-            COALESCE(tp.nome_prestadora, 'NAO IDENTIFICADO') AS nome_prestadora,
+            tp.nome_prestadora,
             CASE WHEN up.cod_receptora IS NOT NULL THEN 1 ELSE 0 END AS ind_portado,
             CASE WHEN tn.cod_prestadora IS NOT NULL THEN 1 ELSE 0 END AS ind_designado
-        FROM temp_numbers_query ntq
+        FROM {IMPORT_SCHEMA}.{TB_NUMBERS_TO_QUERY} ntq
         LEFT JOIN LATERAL (
             SELECT cod_prestadora
-            FROM public.tb_numeracao
-            WHERE faixa_inicial <= ntq.nu_terminal 
-              AND faixa_final >= ntq.nu_terminal
-            ORDER BY faixa_inicial DESC
+            FROM {TARGET_SCHEMA}.{TB_NUMERACAO}
+            WHERE cn = ntq.cn
+            AND prefixo = ntq.prefixo
+            AND faixa_inicial <= ntq.nu_terminal 
+            AND faixa_final >= ntq.nu_terminal
             LIMIT 1
         ) tn ON true
         LEFT JOIN LATERAL (
             SELECT cod_receptora
-            FROM public.tb_portabilidade_historico
-            WHERE tn_inicial = ntq.nu_terminal
-              AND data_agendamento <= %s
+            FROM {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} up
+            WHERE cn = ntq.cn
+            AND tn_inicial = ntq.nu_terminal
+            AND data_agendamento <= %s
             ORDER BY data_agendamento DESC
             LIMIT 1
         ) up ON true
-        LEFT JOIN public.tb_prestadoras tp
-            ON COALESCE(up.cod_receptora, tn.cod_prestadora) = tp.cod_prestadora
-        ORDER BY ntq.nu_terminal
+        LEFT JOIN {TARGET_SCHEMA}.{TB_PRESTADORAS} tp
+            ON COALESCE(up.cod_receptora, tn.cod_prestadora) = tp.cod_prestadora;
     """
-
+   
+    # Use a single connection for all operations to avoid lock issues
     with get_db_connection() as conn:
         cur = conn.cursor()
 
         # Create temporary table
         cur.execute(create_temp_table)
-
+        
         # Insert numbers into temporary table
-        cur.executemany(insert_numbers, [(num,) for num in numbers_list])
+        bulk_insert_with_copy(conn, df_numbers_to_query, copy_numbers_to_query)
+        
+        # Commit the creation and insertion before querying
+        # conn.commit()
 
         # Execute main query
-        cur.execute(query, (ref_date,))
+        cur.execute(query_numbers_carriers, (ref_date,))
 
         # Get column names from cursor description
         column_names = tuple([desc[0] for desc in cur.description])
@@ -167,11 +207,12 @@ def query_numbers_carriers(numbers_to_query, reference_date=None):
         # Fetch all results
         results = cur.fetchall()
 
-        # Temporary table will be automatically dropped at transaction end
-        # due to ON COMMIT DROP clause
+        # Clean up temporary table
+        cur.execute(f"DROP TABLE IF EXISTS {IMPORT_SCHEMA}.{TB_NUMBERS_TO_QUERY} CASCADE;")
+        conn.commit()
 
         # Return structured result with column headers
         return {
-            "columns": column_names,
             "results": results,
+            "column_names": column_names,
         }
