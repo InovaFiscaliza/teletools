@@ -1,45 +1,94 @@
-# Módulo Database - Teletools
+# Teletools ABR Database
 
-Documentação completa do módulo `database` da biblioteca Teletools, que fornece ferramentas para importação e consulta de dados de telecomunicações brasileiras da ABR Telecom (Associação Brasileira de Recursos em Telecomunicações).
+> **[← Voltar para o README principal](../README.md)** | [ABR Loader](abr_loader.md) | [CDR Stage Database](cdr_stage.md)
+
+Documentação do módulo `abr_database` da biblioteca Teletools para consulta de dados de telecomunicações brasileiras da ABR Telecom (Associação Brasileira de Recursos em Telecomunicações).
 
 ## Índice
 
-- [Visão Geral](#visão-geral)
-- [Instalação e Configuração](#instalação-e-configuração)
-- [Cliente ABR Loader](#cliente-abr-loader)
-  - [Comandos Disponíveis](#comandos-disponíveis)
-  - [Exemplos de Uso](#exemplos-de-uso)
-- [Função query_numbers_carriers](#função-query_numbers_carriers)
-  - [Descrição](#descrição)
-  - [Parâmetros](#parâmetros)
-  - [Retorno](#retorno)
-  - [Exemplos de Uso Python](#exemplos-de-uso-python)
-- [Estrutura de Dados](#estrutura-de-dados)
-- [Arquitetura e Performance](#arquitetura-e-performance)
-- [Solução de Problemas](#solução-de-problemas)
+- [Teletools ABR Database](#teletools-abr-database)
+  - [Índice](#índice)
+  - [Visão Geral](#visão-geral)
+    - [Características Principais](#características-principais)
+  - [Instalação e Configuração](#instalação-e-configuração)
+    - [Pré-requisitos](#pré-requisitos)
+    - [Instalação](#instalação)
+    - [Configuração do Banco de Dados](#configuração-do-banco-de-dados)
+  - [Função query\_numbers\_carriers](#função-query_numbers_carriers)
+    - [Descrição](#descrição)
+    - [Parâmetros](#parâmetros)
+      - [`numbers_to_query` (obrigatório)](#numbers_to_query-obrigatório)
+      - [`reference_date` (opcional)](#reference_date-opcional)
+    - [Retorno](#retorno)
+      - [Estrutura do Retorno](#estrutura-do-retorno)
+      - [Colunas do Resultado](#colunas-do-resultado)
+    - [Exemplos de Uso Python](#exemplos-de-uso-python)
+      - [Exemplo Básico](#exemplo-básico)
+      - [Exemplo com Pandas DataFrame](#exemplo-com-pandas-dataframe)
+      - [Exemplo com Consulta Histórica](#exemplo-com-consulta-histórica)
+      - [Exemplo com Múltiplas Consultas](#exemplo-com-múltiplas-consultas)
+      - [Exemplo com Análise de Portabilidade](#exemplo-com-análise-de-portabilidade)
+      - [Exemplo de Tratamento de Erros](#exemplo-de-tratamento-de-erros)
+  - [Estrutura de Dados](#estrutura-de-dados)
+    - [Schemas do Banco de Dados](#schemas-do-banco-de-dados)
+    - [Tabelas Principais](#tabelas-principais)
+      - [1. teletools\_tb\_numeracao](#1-teletools_tb_numeracao)
+      - [2. teletools\_tb\_portabilidade\_historico](#2-teletools_tb_portabilidade_historico)
+      - [3. teletools\_tb\_prestadoras](#3-teletools_tb_prestadoras)
+    - [Tabelas Temporárias](#tabelas-temporárias)
+      - [entrada.teletools\_numbers\_to\_query](#entradateletools_numbers_to_query)
+  - [Arquitetura e Performance](#arquitetura-e-performance)
+    - [Estratégia de Consulta - query\_numbers\_carriers()](#estratégia-de-consulta---query_numbers_carriers)
+    - [Dicas de Performance](#dicas-de-performance)
+  - [Solução de Problemas](#solução-de-problemas)
+    - [Erro de Conexão](#erro-de-conexão)
+  - [Solução de Problemas](#solução-de-problemas-1)
+    - [Erro de Conexão com Banco de Dados](#erro-de-conexão-com-banco-de-dados)
+    - [Números Não Encontrados](#números-não-encontrados)
+    - [Tabelas Travadas (Locked)](#tabelas-travadas-locked)
+    - [Data de Referência Inválida](#data-de-referência-inválida)
+  - [Referências](#referências)
+    - [Fontes de Dados ABR Telecom](#fontes-de-dados-abr-telecom)
+  - [Contribuindo](#contribuindo)
+  - [Licença](#licença)
+  - [Contato e Suporte](#contato-e-suporte)
 
 ## Visão Geral
 
-O módulo `database` oferece funcionalidades essenciais para trabalhar com dados de telecomunicações da ABR Telecom:
+O módulo Teletools ABR Database (`abr_database`) oferece interface Python de alto nível para consulta de dados de telecomunicações armazenados no banco de dados PostgreSQL. Permite consultar informações de operadoras e status de portabilidade para números telefônicos brasileiros considerando o histórico completo de portabilidade.
 
-- **Importação de Dados**: Cliente de linha de comando para importação eficiente de grandes volumes de dados de portabilidade e numeração
-- **Consultas Otimizadas**: Interface de alto nível para consultas de informações de operadoras e portabilidade
-- **Performance**: Processamento em chunks e bulk inserts para lidar com milhões de registros
-- **Histórico**: Suporte a consultas históricas com datas de referência
+### Características Principais
 
-### Principais Componentes
+- ✅ **Consultas em Lote**: Processamento eficiente de milhares de números em uma única operação
+- ✅ **Consultas Históricas**: Suporte a datas de referência para análise temporal
+- ✅ **Resolução Automática**: Determina operadora atual considerando numeração + portabilidade
+- ✅ **Retorno Estruturado**: Resultados com nomes de colunas para fácil integração
+- ✅ **Alta Performance**: Arquitetura otimizada com conexão única e bulk inserts
+- ✅ **API Simples**: Interface Python intuitiva para scripts e aplicações
 
-1. **abr_loader**: Cliente de linha de comando para importação de dados da ABR
-2. **query_numbers_carriers()**: Função para consultas de operadoras e portabilidade
-3. **Gerenciamento de Conexão**: Configuração segura via variáveis de ambiente
+> **Nota:** Para importar dados da ABR Telecom (portabilidade e numeração), consulte a documentação do [Cliente ABR Loader](abr_loader.md).
 
 ## Instalação e Configuração
 
 ### Pré-requisitos
 
-- Python 3.8 ou superior
-- PostgreSQL 12 ou superior
-- Pacotes Python: `typer`, `pandas`, `psycopg2`, `python-dotenv`
+- Python 3.13+ com gerenciador de pacotes [UV](https://docs.astral.sh/uv/)
+- Banco de dados [Teletools CDR Stage Database](cdr_stage.md) com dados da ABR importados
+
+
+### Instalação
+
+```bash
+# Clone o repositório
+git clone https://github.com/InovaFiscaliza/teletools.git
+cd teletools
+
+# Instale as dependências
+uv sync
+
+# Ative o ambiente virtual
+source .venv/bin/activate
+```
 
 ### Configuração do Banco de Dados
 
@@ -60,158 +109,9 @@ DB_SSLMODE=prefer
 DB_CONNECTION_TIMEOUT=30
 ```
 
-2. **Teste a conexão**:
+2. **Importe os dados da ABR** (se ainda não foi feito):
 
-```bash
-abr_loader test-connection
-```
-
-Se a conexão for bem-sucedida, você verá:
-
-```
-✅ Database connection successful!
-✓ Configuration is valid
-✓ Server is reachable
-✓ Credentials are correct
-
-💡 You can now proceed with data import operations.
-```
-
-## Cliente ABR Loader
-
-O `abr_loader` é uma ferramenta de linha de comando (CLI) para importar dados de telecomunicações brasileiras da ABR Telecom para o PostgreSQL.
-
-### Comandos Disponíveis
-
-#### 1. load-pip - Importar Dados de Portabilidade
-
-Importa relatórios de portabilidade numérica do sistema PIP (Plataforma de Integração da Portabilidade) da ABR.
-
-**Sintaxe:**
-
-```bash
-abr_loader load-pip INPUT_PATH [OPTIONS]
-```
-
-**Parâmetros:**
-
-- `INPUT_PATH`: Caminho para arquivo CSV.gz ou diretório com múltiplos arquivos
-
-**Opções:**
-
-- `--drop-table/--no-drop-table`: Remove tabela de staging após importação (padrão: True (drop-table))
-- `--rebuild-database/--no-rebuild-database`: Reconstrói banco de dados antes da importação (padrão: False (no-rebuild-database))
-- `--rebuild-indexes/--no-rebuild-indexes`: Reconstrói índices do banco de dados (padrão: False (no-rebuild-indexes))
-
-**Fonte de Dados:**
-
-Os arquivos de portabilidade são obtidos do sistema PIP da ABR Telecom (acesso restrito).
-
-**Exemplo de Uso:**
-
-```bash
-# Importar arquivo único
-abr_loader load-pip /dados/portabilidade_202412.csv.gz
-
-# Importar diretório completo com rebuild
-abr_loader load-pip /dados/portabilidade/ --rebuild-database
-
-# Importar e não remover tabela temporária
-abr_loader load-pip /dados/pip_reports/ --no-drop-table
-```
-
-#### 2. load-nsapn - Importar Plano de Numeração
-
-Importa dados do plano de numeração brasileiro do portal público da [EASI (Entidade Administradora do Sistema Informatizado)](https://easi.abrtelecom.com.br/nsapn/#/public/files).
-
-**Sintaxe:**
-
-```bash
-abr_loader load-nsapn INPUT_PATH [OPTIONS]
-```
-
-**Parâmetros:**
-
-- `INPUT_PATH`: Caminho para arquivo ZIP ou diretório com múltiplos arquivos
-
-**Opções:**
-
-- `--drop-table/--no-drop-table`: Remove tabela após importação (padrão: True)
-
-**Tipos de Arquivo Suportados:**
-
-O sistema detecta automaticamente o tipo de arquivo pelo prefixo do nome:
-
-| Prefixo | Descrição | URL de Download |
-|---------|-----------|-----------------|
-| STFC | Telefonia Fixa Comutada | [Download STFC](https://easi.abrtelecom.com.br/nsapn/#/public/files/download/stfc) |
-| SMP | Serviço Móvel Pessoal | [Download SMP](https://easi.abrtelecom.com.br/nsapn/#/public/files/download/smp) |
-| SME | Serviço Móvel Especializado | [Download SME](https://easi.abrtelecom.com.br/nsapn/#/public/files/download/sme) |
-| CNG | Códigos Não Geográficos (0800, 0300, etc.) | [Download CNG](https://easi.abrtelecom.com.br/nsapn/#/public/files/download/cng) |
-| SUP | Serviços de Utilidade Pública | [Download SUP](https://easi.abrtelecom.com.br/nsapn/#/public/files/download/sup) |
-| STFC-FATB | STFC Fora da Área de Tarifa Básica | [Download STFC-FATB](https://easi.abrtelecom.com.br/nsapn/#/public/files/download/stfc-fatb) |
-
-**Exemplo de Uso:**
-
-```bash
-# Importar arquivo único de STFC
-abr_loader load-nsapn /dados/STFC_202412.zip
-
-# Importar todos os arquivos de um diretório
-abr_loader load-nsapn /dados/numeracao/
-
-# Importar sem remover dados existentes
-abr_loader load-nsapn /dados/nsapn/ --no-drop-table
-```
-
-#### 3. test-connection - Testar Conexão
-
-Valida a configuração do banco de dados e testa a conectividade.
-
-**Sintaxe:**
-
-```bash
-abr_loader test-connection
-```
-
-**Exemplo de Uso:**
-
-```bash
-# Testar conexão antes de importar dados
-abr_loader test-connection && abr_loader load-pip dados.csv.gz
-```
-
-### Exemplos de Uso
-
-#### Workflow Completo de Importação
-
-```bash
-# 1. Testar conexão
-abr_loader test-connection
-
-# 2. Importar plano de numeração (dados públicos)
-abr_loader load-nsapn /dados/nsapn/
-
-# 3. Importar dados de portabilidade (dados restritos)
-abr_loader load-pip /dados/portabilidade/ --rebuild-database
-
-# 4. Verificar logs
-tail -f abr_portabilidade.log
-```
-
-#### Atualização Mensal de Dados
-
-```bash
-# Script para atualização mensal
-#!/bin/bash
-
-# Baixar arquivos mais recentes do portal NSAPN
-# (você precisa implementar o download)
-
-# Importar novos dados sem rebuild
-abr_loader load-nsapn /dados/nsapn_202412/ --no-drop-table
-abr_loader load-pip /dados/pip_202412/ --no-rebuild-database
-```
+Consulte a documentação do [Cliente ABR Loader](abr_loader.md) para instruções detalhadas sobre como importar dados de portabilidade e numeração.
 
 ## Função query_numbers_carriers
 
@@ -578,16 +478,7 @@ CREATE TABLE entrada.teletools_numbers_to_query (
 
 ## Arquitetura e Performance
 
-### Estratégia de Importação
-
-1. **Processamento em Chunks**: Arquivos grandes são processados em blocos de 100.000 linhas
-2. **Bulk Insert com COPY**: Uso do comando COPY do PostgreSQL para máxima performance
-3. **Tabelas de Staging**: Dados são primeiro importados para tabelas temporárias
-4. **Consolidação**: Dados são então movidos/transformados para tabelas finais
-
-### Estratégia de Consulta
-
-#### query_numbers_carriers()
+### Estratégia de Consulta - query_numbers_carriers()
 
 1. **Criação de Tabela Temporária**: Lista de números é inserida em tabela staging
 2. **JOIN Lateral**: Consulta eficiente usando LATERAL joins para buscar numeração e portabilidade
@@ -608,19 +499,8 @@ Buscar em tb_portabilidade_historico (até data_referencia)
 Retornar operadora portada OU operadora original
 ```
 
+
 ### Dicas de Performance
-
-#### Para Importação
-
-```bash
-# Para datasets grandes, reconstruir banco e índices de uma vez
-abr_loader load-pip /dados/grandes/ --rebuild-database --rebuild-indexes
-
-# Para atualizações incrementais, não reconstruir
-abr_loader load-pip /dados/novos/ --no-rebuild-database
-```
-
-#### Para Consultas
 
 ```python
 # Consultar em lotes grandes (10k-100k números por vez) é mais eficiente
@@ -639,17 +519,6 @@ for i in range(0, len(lista_grande), 50000):
     query_numbers_carriers(batch)
 ```
 
-### Requisitos de Hardware
-
-Para processar datasets completos da ABR:
-
-- **CPU**: 4+ cores recomendado
-- **RAM**: 8GB mínimo, 16GB recomendado
-- **Disco**: SSD recomendado para PostgreSQL
-- **Espaço em disco**:
-  - Portabilidade: ~5GB para dados históricos completos
-  - Numeração: ~2GB para plano completo
-  - Índices: ~3GB adicionais
 
 ## Solução de Problemas
 
@@ -674,57 +543,27 @@ abr_loader test-connection
 pg_isready -h localhost -p 5432
 ```
 
-### Erro de Memória
+## Solução de Problemas
 
-**Problema**: `MemoryError` durante importação
+### Erro de Conexão com Banco de Dados
 
-**Soluções:**
-
-1. Processar arquivos menores:
-```bash
-# Em vez de importar diretório inteiro
-abr_loader load-pip /dados/grandes/
-
-# Importar arquivos individualmente
-for file in /dados/grandes/*.csv.gz; do
-    abr_loader load-pip "$file" --no-rebuild-database
-done
-```
-
-2. Ajustar CHUNK_SIZE no código (requer modificação do código):
-```python
-# Em _database_config.py
-CHUNK_SIZE = 50000  # Reduzir de 100000 para 50000
-```
-
-### Performance Lenta
-
-**Problema**: Consultas ou importações lentas
+**Problema**: `Database connection failed`
 
 **Soluções:**
 
-1. Reconstruir índices:
+1. Verificar arquivo `~/.teletools.env`
+2. Testar conexão:
 ```bash
-abr_loader load-pip /dados/ --rebuild-indexes
+abr_loader test-connection
 ```
-
-2. Verificar índices no PostgreSQL:
-```sql
--- Verificar índices existentes
-SELECT schemaname, tablename, indexname 
-FROM pg_indexes 
-WHERE tablename LIKE 'teletools%';
-
--- Verificar uso de índices
-EXPLAIN ANALYZE
-SELECT * FROM public.teletools_tb_numeracao 
-WHERE cn = 11 AND prefixo = 9876;
-```
-
-3. Vacuum e análise:
-```sql
-VACUUM ANALYZE public.teletools_tb_numeracao;
-VACUUM ANALYZE public.teletools_tb_portabilidade_historico;
+3. Verificar se o PostgreSQL está rodando:
+```bash
+(teletools) $ docker ps
+CONTAINER ID   IMAGE            COMMAND                  CREATED      STATUS      PORTS                                              NAMES
+5b2bb3845977   dpage/pgadmin4   "/entrypoint.sh"         5 days ago   Up 5 days   443/tcp, 0.0.0.0:5050->80/tcp, [::]:5050->80/tcp   pgadmin-cdr
+cba7220ab8ca   postgrescdr      "docker-entrypoint.s…"   5 days ago   Up 5 days   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp        postgre-cdr
+(teletools) $ docker exec -it postgre-cdr pg_isready
+/var/run/postgresql:5432 - accepting connections
 ```
 
 ### Números Não Encontrados
@@ -800,21 +639,26 @@ query_numbers_carriers(numeros, reference_date='12-15-2024')  # Erro!
 - **Portal NSAPN** (Plano de Numeração): https://easi.abrtelecom.com.br/nsapn/#/public/files/download/
 - **Sistema PIP** (Portabilidade): Acesso restrito via ABR Telecom
 
-### Documentação Relacionada
+## Contribuindo
 
-- [ABR Loader](../../docs/abr_loader.md)
+Para contribuir com melhorias neste módulo:
+1. Fork o repositório `teletools`
+2. Crie um branch para sua feature
+3. Implemente testes para novas funcionalidades
+4. Submeta um pull request
 
-### Contato e Suporte
+## Licença
 
-Para questões sobre o módulo database:
+Este módulo é parte do projeto `teletools` e segue a mesma licença do projeto principal.
 
-- **Issues**: Abra uma issue no repositório GitHub
-- **Documentação**: Consulte os docstrings nos arquivos Python
-- **Logs**: Verifique `abr_portabilidade.log` e `abr_numeracao.log` para detalhes de importação
+## Contato e Suporte
+
+Para questões, bugs ou sugestões:
+- Abra uma issue no repositório do projeto
+- Consulte a documentação adicional em `/docs`
 
 ---
 
-**Última atualização**: Dezembro 2024  
-**Versão do módulo**: 0.1.0  
-**Autor**: Maxwell Freitas  
-**Licença**: Ver LICENSE no repositório
+**Versão:** 0.0.2
+**Última atualização:** 2025-12-17
+**Status:** Em desenvolvimento ativo
