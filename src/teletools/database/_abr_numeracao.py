@@ -101,6 +101,7 @@ from ._database_config import (
     CHUNK_SIZE,
     TARGET_SCHEMA,
     TB_NUMERACAO,
+    bulk_insert_with_copy,
     execute_create_table,
     execute_drop_table,
     execute_truncate_table,
@@ -197,67 +198,6 @@ def _read_file_in_chunks(
         raise
 
 
-def _bulk_insert_with_copy(conn, df: pd.DataFrame, file_config: dict) -> None:
-    """
-    Perform high-performance bulk insert using PostgreSQL COPY FROM.
-
-    Converts DataFrame to tab-delimited format in memory and uses PostgreSQL's
-    COPY FROM command for optimal insertion speed. This method is significantly
-    faster than individual INSERT statements, especially for large datasets.
-
-    Args:
-        conn: Active PostgreSQL database connection
-        df: DataFrame containing data to insert
-        file_config: Configuration dict with 'table_name' and 'table_columns' keys
-
-    Raises:
-        Exception: If data conversion or database insertion fails
-
-    Note:
-        - Uses tab delimiter and \\N for NULL values (PostgreSQL standard)
-        - Commits transaction after successful copy operation
-        - Rolls back on error to maintain data consistency
-    """
-
-    # Get table name from file configuration
-    table_name = file_config["table_name"]
-    # Define column list for COPY command
-    copy_columns = ", ".join(file_config["table_columns"])
-
-    # Create StringIO buffer
-    output = StringIO()
-
-    # Convert DataFrame to CSV in memory
-    df.to_csv(
-        output,
-        sep="\t",
-        header=False,
-        index=False,
-        na_rep="\\N",  # NULL representation for PostgreSQL
-    )
-
-    output.seek(0)
-
-    try:
-        with conn.cursor() as cursor:
-            # Use PostgreSQL COPY FROM for ultra-fast bulk insertion
-            # Tab-delimited format with \N representing NULL values
-            cursor.copy_expert(
-                f"""
-                COPY {IMPORT_SCHEMA}.{table_name} ({copy_columns})
-                FROM STDIN WITH CSV DELIMITER E'\\t' NULL '\\N'
-                """,
-                output,
-            )
-        # Commit transaction to persist data
-        conn.commit()
-
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Error in insertion: {e}")
-        raise
-
-
 def _import_single_file(
     file: Path,
 ) -> int:
@@ -302,7 +242,16 @@ def _import_single_file(
                 chunk_count += 1
                 rows_in_chunk = len(chunk)
                 # Bulk insert using PostgreSQL COPY for maximum performance
-                _bulk_insert_with_copy(conn, chunk, file_config)
+                # Get table name from file configuration
+                table_name = file_config["table_name"]
+                # Define column list for COPY command
+                copy_columns = ", ".join(file_config["table_columns"])
+                # Build copy query
+                copy_query = f"""
+                COPY {IMPORT_SCHEMA}.{table_name} ({copy_columns})
+                FROM STDIN WITH CSV DELIMITER E'\\t' NULL '\\N'
+                """
+                bulk_insert_with_copy(conn, chunk, copy_query)
                 total_rows += rows_in_chunk
                 logger.info(
                     f"    Inserted chunk {chunk_count} with {rows_in_chunk} rows."
