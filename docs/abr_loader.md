@@ -1,21 +1,59 @@
-# Módulo de importação de dados da ABR Telecom
+# Cliente ABR Loader - Teletools
+
+Documentação completa do cliente de linha de comando `abr_loader` para importação de dados de telecomunicações brasileiras da ABR Telecom (Associação Brasileira de Recursos em Telecomunicações).
+
+## Índice
+
+- [Visão Geral](#visão-geral)
+- [Instalação e Configuração](#instalação-e-configuração)
+- [Comandos Disponíveis](#comandos-disponíveis)
+  - [load-pip - Importar Dados de Portabilidade](#load-pip---importar-dados-de-portabilidade)
+  - [load-nsapn - Importar Plano de Numeração](#load-nsapn---importar-plano-de-numeração)
+  - [test-connection - Testar Conexão](#test-connection---testar-conexão)
+- [Formato dos Arquivos](#formato-dos-arquivos)
+- [Exemplos de Uso](#exemplos-de-uso)
+- [Arquitetura e Performance](#arquitetura-e-performance)
+- [Solução de Problemas](#solução-de-problemas)
 
 ## Visão Geral
 
-O módulo de importação de dados da ABR Telecom (`abr_loader`) fornece funcionalidade para importar dados de portabilidade numérica e dos planos de numeração de telefonia brasileira provenientes de relatórios dos sistemas PIP, Portal de Informações da Portabilidade e NSAPN, Novo Sistema de Administração dos Planos de Numeração, respectivamente. 
+O `abr_loader` é uma ferramenta de linha de comando (CLI) para importar dados de telecomunicações brasileiras da ABR Telecom em um banco de dados PostgreSQL. A ferramenta suporta dois tipos principais de dados:
 
-O módulo processa arquivos com histórico de portabilidade e atribuição de faixas de numeração e os importa para um banco de dados PostgreSQL com desempenho otimizado através de processamento em lotes e operações de inserção em massa.
+- **Dados de Portabilidade**: Histórico de portabilidade numérica do sistema PIP (Plataforma de Integração da Portabilidade)
+- **Plano de Numeração**: Designação de faixas de numeração do sistema NSAPN (Novo Sistema de Administração dos Planos de Numeração)
 
-## Características Principais
+### Características Principais
 
-- ✅ **Processamento de arquivo único ou múltiplos arquivos**
-- ✅ **Leitura eficiente em chunks** para otimizar uso de memória
-- ✅ **Inserções em massa no banco** usando PostgreSQL COPY FROM
-- ✅ **Logging abrangente** com rastreamento de progresso
-- ✅ **Validação de dados** e otimização de tipos
-- ✅ **Criação automática de tabelas** com índices otimizados
+- ✅ **Importação em Lote**: Processa arquivo único ou diretórios completos
+- ✅ **Alta Performance**: Processamento em chunks e bulk inserts otimizados
+- ✅ **Detecção Automática**: Identifica tipos de arquivo automaticamente
+- ✅ **Logging Completo**: Rastreamento detalhado do progresso de importação
+- ✅ **Gestão de Índices**: Criação e reconstrução automática de índices
+- ✅ **Validação de Dados**: Otimização de tipos e validação de estrutura
 
-## Instalação e Dependências
+## Instalação e Configuração
+
+### Pré-requisitos
+
+- Python 3.8 ou superior
+- PostgreSQL 12 ou superior
+- Pacotes Python: `typer`, `pandas`, `psycopg2`, `python-dotenv`
+
+### Instalação do Teletools
+
+```bash
+# Clone o repositório
+git clone https://github.com/InovaFiscaliza/teletools.git
+cd teletools
+
+# Instale as dependências
+uv sync
+
+# Ative o ambiente virtual
+source .venv/bin/activate
+```
+
+### Configuração do Banco de Dados
 
 
 
