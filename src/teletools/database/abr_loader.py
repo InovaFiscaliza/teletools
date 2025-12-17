@@ -81,7 +81,7 @@ def load_pip(
             "When enabled, imported data will be deleted after import. "
             "Use --no-drop-table to keep it after import.",
         ),
-    ] = False,
+    ] = True,
     rebuild_database: Annotated[
         bool,
         typer.Option(
