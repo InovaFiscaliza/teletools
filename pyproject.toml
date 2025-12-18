@@ -2,7 +2,7 @@
 name = "teletools"
 version = "0.0.2"
 description = "Python Utility Functions Library for Call Details Records ( CDRs ) from Brazilian Telecommunications Carriers"
-readme = "README.md"
+readme = "README.pypi.md"
 authors = [
     { name = "Maxwel de Souza Freitas", email = "maxwel@maxwelfreitas.com.br" }
 ]
@@ -17,6 +17,12 @@ dependencies = [
     "tqdm>=4.67.1",
     "typer>=0.19.1",
 ]
+
+[project.urls]
+homepage = "https://github.com/InovaFiscaliza/teletools"
+documentation = "https://github.com/InovaFiscaliza/teletools/blob/main/README.md"
+repository = "https://github.com/InovaFiscaliza/teletools"
+
 
 [project.scripts]
 cipher_cli = "teletools.cipher.cipher_cli:main"
