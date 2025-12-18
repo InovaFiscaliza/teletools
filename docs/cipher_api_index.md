@@ -18,8 +18,8 @@ Funções disponíveis para uso através do módulo `teletools.cipher`.
 
 | Função | Descrição | 
 |--------|-----------|
-| [`encrypt_file_or_folder` 📚](cipher_api/encrypt_file_or_folder.md) | Criptografa arquivo ou todos os arquivos de uma pasta usando chave pública GPG |
-| [`decrypt_file_or_folder` 📚](cipher_api/decrypt_file_or_folder.md) | Descriptografa arquivo .gpg ou todos os arquivos .gpg de uma pasta usando chave privada GPG |
+| [`encrypt_file_or_folder`](cipher_api/encrypt_file_or_folder.md) | Criptografa arquivo ou todos os arquivos de uma pasta usando chave pública GPG |
+| [`decrypt_file_or_folder`](cipher_api/decrypt_file_or_folder.md) | Descriptografa arquivo .gpg ou todos os arquivos .gpg de uma pasta usando chave privada GPG |
 
 ---
 

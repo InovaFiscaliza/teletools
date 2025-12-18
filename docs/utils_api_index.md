@@ -18,8 +18,8 @@ Funções disponíveis para uso através do módulo `teletools.utils`.
 
 | Função | Descrição | 
 |--------|-----------|
-| [`inspect_file` 📚](utils_api/inspect_file.md) | Inspeciona as primeiras linhas de arquivos de texto, gzip ou zip |
-| [`setup_logger` 📚](utils_api/setup_logger.md) | Configura logger com saída simultânea para console e arquivo |
+| [`inspect_file`](utils_api/inspect_file.md) | Inspeciona as primeiras linhas de arquivos de texto, gzip ou zip |
+| [`setup_logger`](utils_api/setup_logger.md) | Configura logger com saída simultânea para console e arquivo |
 
 ---
 

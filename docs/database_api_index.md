@@ -18,7 +18,7 @@ Funções disponíveis para uso através do módulo `teletools.database`.
 
 | Função | Descrição | 
 |--------|-----------|
-| [`query_numbers_carriers` 📚](database_api/query_numbers_carriers.md)| Consulta informações de operadora e status de portabilidade para números telefônicos brasileiros |
+| [`query_numbers_carriers`](database_api/query_numbers_carriers.md) | Consulta informações de operadora e status de portabilidade para números telefônicos brasileiros |
 
 ---
 

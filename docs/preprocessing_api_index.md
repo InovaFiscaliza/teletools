@@ -25,8 +25,8 @@ Funções disponíveis para uso através do módulo `teletools.preprocessing`.
 
 | Função | Descrição | 
 |--------|-----------|
-| [`normalize_number` 📚](preprocessing_api/normalize_number.md) | Normaliza um único número telefônico brasileiro segundo os padrões ANATEL |
-| [`normalize_number_pair` 📚](preprocessing_api/normalize_number_pair.md) | Normaliza um par de números telefônicos relacionados com inferência contextual de código de área |
+| [`normalize_number`](preprocessing_api/normalize_number.md) | Normaliza um único número telefônico brasileiro segundo os padrões ANATEL |
+| [`normalize_number_pair`](preprocessing_api/normalize_number_pair.md) | Normaliza um par de números telefônicos relacionados com inferência contextual de código de área |
 
 ---
 
