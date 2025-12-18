@@ -143,7 +143,7 @@ Criptografa um arquivo ou todos os arquivos de um diretório usando uma chave p�
 
 **Uso:**
 ```bash
-cipher encrypt [CHAVE_PUBLICA] [ARQUIVO_OU_DIRETORIO] [PASTA_SAIDA]
+cipher_cli encrypt [CHAVE_PUBLICA] [ARQUIVO_OU_DIRETORIO] [PASTA_SAIDA]
 ```
 
 ### `decrypt` - Descriptografia de Arquivos
@@ -157,7 +157,7 @@ Descriptografa arquivos `.gpg` usando uma chave privada GPG.
 
 **Uso:**
 ```bash
-cipher decrypt [CHAVE_PRIVADA] [ARQUIVO_OU_DIRETORIO] [PASTA_SAIDA]
+cipher_cli decrypt [CHAVE_PRIVADA] [ARQUIVO_OU_DIRETORIO] [PASTA_SAIDA]
 ```
 
 ## Criptografia de Arquivos
@@ -224,7 +224,7 @@ Usage: cipher_cli encrypt [OPTIONS] PUBLIC_KEY_FILE INPUT_PATH OUTPUT_FOLDER
 $ source repositorios/teletools/.venv/bin/activate
 
 # Criptografar um arquivo específico
-(teletools) $ cipher encrypt chave_publica.asc documento.txt arquivos_criptografados/
+(teletools) $ cipher_cli encrypt chave_publica.asc documento.txt arquivos_criptografados/
 
 ✅ Encryption completed successfully!
 
@@ -240,7 +240,7 @@ $
 $ source repositorios/teletools/.venv/bin/activate
 
 # Criptografar todos os arquivos de uma pasta
-(teletools) $ cipher encrypt chave_publica.asc dados_sensiveis/ dados_criptografados/
+(teletools) $ cipher_cli encrypt chave_publica.asc dados_sensiveis/ dados_criptografados/
 
 Public key file chave_publica.asc found.
 File dados_sensiveis/documento1.txt successfully encrypted to dados_criptografados/documento1.txt.gpg
@@ -260,7 +260,7 @@ $
 $ source repositorios/teletools/.venv/bin/activate
 
 # Omitir pasta de saída - arquivos .gpg serão criados no mesmo diretório
-(teletools) $ cipher encrypt chave_publica.asc documento_importante.txt
+(teletools) $ cipher_cli encrypt chave_publica.asc documento_importante.txt
 
 Public key file chave_publica.asc found.
 File documento_importante.txt successfully encrypted to documento_importante.txt.gpg
@@ -621,9 +621,3 @@ Este módulo é parte do projeto `teletools` e segue a mesma licença do projeto
 Para questões, bugs ou sugestões:
 - Abra uma issue no repositório do projeto
 - Consulte a documentação adicional em `/docs`
-
----
-
-**Versão:** 0.0.2  
-**Última atualização:** 2025-12-17  
-**Status:** Em desenvolvimento ativo

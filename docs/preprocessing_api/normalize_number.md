@@ -213,9 +213,3 @@ print(df_resultado)
 - **[normalize_number_pair](normalize_number_pair.md)** - Normaliza par de números com inferência contextual
 - **[Teletools Preprocessing API](../preprocessing_api_index.md)** - Índice de APIs de pré-processamento
 - **[ANATEL Plano de Numeração](https://www.anatel.gov.br/)** - Padrões oficiais de numeração
-
----
-
-**Versão:** 0.0.2  
-**Última atualização:** 2025-12-18  
-**Status:** Em desenvolvimento ativo

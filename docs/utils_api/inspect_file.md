@@ -290,9 +290,3 @@ comparar_estruturas(
 - **[setup_logger](setup_logger.md)** - Configuração de logging para processamento
 - **[Teletools Utils API](../utils_api_index.md)** - Índice de utilitários
 - **[Teletools Database API](../database_api_index.md)** - APIs para consulta de dados
-
----
-
-**Versão:** 0.0.2  
-**Última atualização:** 2025-12-18  
-**Status:** Em desenvolvimento ativo

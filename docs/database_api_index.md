@@ -36,9 +36,3 @@ Funções disponíveis para uso através do módulo `teletools.database`.
 - **[ABR Telecom NSAPN](https://easi.abrtelecom.com.br/nsapn/)** - Portal oficial de dados de numeração
 - **[PostgreSQL Documentation](https://www.postgresql.org/docs/)** - Documentação do PostgreSQL
 - **[pandas Documentation](https://pandas.pydata.org/docs/)** - Documentação do pandas
-
----
-
-**Versão:** 0.0.2  
-**Última atualização:** 2025-12-17  
-**Status:** Em desenvolvimento ativo

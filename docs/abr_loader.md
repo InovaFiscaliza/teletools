@@ -637,9 +637,3 @@ Este módulo é parte do projeto `teletools` e segue a mesma licença do projeto
 Para questões, bugs ou sugestões:
 - Abra uma issue no repositório do projeto
 - Consulte a documentação adicional em `/docs`
-
----
-
-**Versão:** 0.0.2
-**Última atualização:** 2025-12-17
-**Status:** Em desenvolvimento ativo

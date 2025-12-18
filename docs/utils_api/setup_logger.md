@@ -395,9 +395,3 @@ df_enriquecido = enriquecer_cdr_com_operadoras('cdr_janeiro.csv')
 - **[inspect_file](inspect_file.md)** - Inspeção rápida de arquivos
 - **[Teletools Utils API](../utils_api_index.md)** - Índice de utilitários
 - **[Teletools Database API](../database_api_index.md)** - APIs para consulta de dados
-
----
-
-**Versão:** 0.0.2  
-**Última atualização:** 2025-12-18  
-**Status:** Em desenvolvimento ativo

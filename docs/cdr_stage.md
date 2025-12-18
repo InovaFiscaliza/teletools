@@ -640,8 +640,3 @@ Para questões, bugs ou sugestões:
 
 **Carlos Cesar Lanzoni**
 - Email: carlos.cesar@anatel.gov.br
----
-
-**Versão:** 0.0.2
-**Última atualização:** 2025-12-17
-**Status:** Em desenvolvimento ativo

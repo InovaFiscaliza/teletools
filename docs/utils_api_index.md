@@ -28,9 +28,3 @@ Funções disponíveis para uso através do módulo `teletools.utils`.
 - **[Teletools](../README.md)** - Visão geral do projeto Teletools
 - **[Teletools Database API](database_api_index.md)** - APIs para consulta de dados de telecomunicações
 - **[Teletools Preprocessing API](preprocessing_api_index.md)** - APIs para normalização de números telefônicos
-
----
-
-**Versão:** 0.0.2  
-**Última atualização:** 2025-12-18  
-**Status:** Em desenvolvimento ativo

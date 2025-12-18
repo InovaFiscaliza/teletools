@@ -42,9 +42,3 @@ Funções disponíveis para uso através do módulo `teletools.preprocessing`.
 
 - **[ANATEL - Plano de Numeração](https://www.anatel.gov.br/)** - Planos de numeração oficiais da ANATEL
 - **[ITU-T E.164 Standard](https://handle.itu.int/11.1002/1000/10688)** - Padrão internacional de numeração telefônica
-
----
-
-**Versão:** 0.0.2  
-**Última atualização:** 2025-12-18  
-**Status:** Em desenvolvimento ativo

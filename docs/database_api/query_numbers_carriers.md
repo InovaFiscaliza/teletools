@@ -279,9 +279,3 @@ Formatos aceitos:
 - **[Teletools](../README.md)** - Visão geral do projeto Teletools
 - **[Teletools ABR Loader](abr_loader.md)** - Cliente para importação de dados da ABR Telecom
 - **[Teletools CDR Stage Database](cdr_stage.md)** - Configuração do banco de dados PostgreSQL
-
----
-
-**Versão:** 0.0.2  
-**Última atualização:** 2025-12-17  
-**Status:** Em desenvolvimento ativo

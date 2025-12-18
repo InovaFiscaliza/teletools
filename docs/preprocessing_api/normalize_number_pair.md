@@ -308,9 +308,3 @@ print(df_enriquecido[['calling_norm', 'called_norm', 'tipo_chamada']])
 - **[normalize_number](normalize_number.md)** - Normaliza número telefônico único
 - **[Teletools Preprocessing API](../preprocessing_api_index.md)** - Índice de APIs de pré-processamento
 - **[Teletools Database API](../database_api_index.md)** - APIs para consulta de dados de telecomunicações
-
----
-
-**Versão:** 0.0.2  
-**Última atualização:** 2025-12-18  
-**Status:** Em desenvolvimento ativo

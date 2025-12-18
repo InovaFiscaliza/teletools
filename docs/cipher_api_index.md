@@ -35,9 +35,3 @@ Funções disponíveis para uso através do módulo `teletools.cipher`.
 - **[GnuPG Documentation](https://gnupg.org/documentation/)** - Documentação oficial do GNU Privacy Guard
 - **[python-gnupg Documentation](https://gnupg.readthedocs.io/)** - Documentação da biblioteca python-gnupg
 - **[GPG Best Practices](https://riseup.net/en/security/message-security/openpgp/best-practices)** - Melhores práticas de segurança com GPG
-
----
-
-**Versão:** 0.0.2  
-**Última atualização:** 2025-12-18  
-**Status:** Em desenvolvimento ativo

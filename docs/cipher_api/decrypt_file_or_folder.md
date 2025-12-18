@@ -510,9 +510,3 @@ output = descriptografar_auditado(
 - **[encrypt_file_or_folder](encrypt_file_or_folder.md)** - Criptografar arquivos e pastas
 - **[Teletools Cipher API](../cipher_api_index.md)** - Índice de APIs de criptografia
 - **[Teletools Cipher CLI](../cipher_cli.md)** - Interface de linha de comando
-
----
-
-**Versão:** 0.0.2  
-**Última atualização:** 2025-12-18  
-**Status:** Em desenvolvimento ativo
