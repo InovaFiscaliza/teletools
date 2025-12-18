@@ -12,13 +12,13 @@ The module supports:
 
 Typical usage:
     # Encrypt a file
-    python cipher_cli.py encrypt public_key.pem input.txt output_folder/
+    cipher_cli encrypt public_key.pem input.txt output_folder/
     
     # Decrypt a file
-    python cipher_cli.py decrypt private_key.pem encrypted.bin output_folder/
+    cipher_cli decrypt private_key.pem encrypted.bin output_folder/
     
     # Encrypt all files in a folder
-    python cipher_cli.py encrypt public_key.pem input_folder/ output_folder/
+    cipher_cli encrypt public_key.pem input_folder/ output_folder/
 """
 
 import sys
@@ -79,13 +79,13 @@ def encrypt(
         
     Examples:
         # Encrypt a single file
-        $ python cipher_cli.py encrypt public.pem data.txt encrypted/
+        $ cipher_cli encrypt public.pem data.txt encrypted/
         
         # Encrypt all files in a folder
-        $ python cipher_cli.py encrypt public.pem data_folder/ encrypted/
+        $ cipher_cli encrypt public.pem data_folder/ encrypted/
         
         # Encrypt to same location
-        $ python cipher_cli.py encrypt public.pem data.txt
+        $ cipher_cli encrypt public.pem data.txt
     """
     try:
         encrypt_file_or_folder(public_key_file, input_file_or_folder, output_folder)
@@ -141,13 +141,13 @@ def decrypt(
         
     Examples:
         # Decrypt a single file
-        $ python cipher_cli.py decrypt private.pem encrypted.bin decrypted/
+        $ cipher_cli decrypt private.pem encrypted.bin decrypted/
         
         # Decrypt all files in a folder
-        $ python cipher_cli.py decrypt private.pem encrypted_folder/ decrypted/
+        $ cipher_cli decrypt private.pem encrypted_folder/ decrypted/
         
         # Decrypt to same location
-        $ python cipher_cli.py decrypt private.pem encrypted.bin
+        $ cipher_cli decrypt private.pem encrypted.bin
     """
     try:
         decrypt_file_or_folder(private_key_file, input_file_or_folder, output_folder)
