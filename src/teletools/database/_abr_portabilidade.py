@@ -24,66 +24,96 @@ Typical usage:
 
 import time
 from collections.abc import Iterator
-from io import StringIO
 from pathlib import Path
 
 import pandas as pd
-from ._database_config import get_db_connection
 
 from teletools.utils import setup_logger
 
+from ._abr_portabilidade_sql_queries import (
+    COPY_TO_IMPORT_TABLE_PORTABILIDADE,
+    CREATE_IMPORT_TABLE_PORTABILIDADE,
+    CREATE_TB_PORTABILIDADE_HISTORICO,
+    CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES,
+    DROP_TB_PORTABILIDADE_HISTORICO_INDEXES,
+    UPDATE_TB_PORTABILIDADE_HISTORICO,
+)
+from ._abr_prestadoras import update_table_prestadoras
+from ._database_config import (
+    CHUNK_SIZE,
+    IMPORT_SCHEMA,
+    IMPORT_TABLE_PORTABILIDADE,
+    TARGET_SCHEMA,
+    TB_PORTABILIDADE_HISTORICO,
+    TB_PRESTADORAS,
+    bulk_insert_with_copy,
+    check_if_table_exists,
+    execute_create_table,
+    execute_drop_table,
+    execute_truncate_table,
+    get_db_connection,
+)
+
 # Configure logger
 logger = setup_logger("abr_portabilidade.log")
-
-# Performance settings
-CHUNK_SIZE = 100000  # Process in chunks of 100k rows
-
-# Table and schema names
-IMPORT_SCHEMA = "entrada"
-IMPORT_TABLE = "abr_portabilidade"
 
 
 def _read_file_in_chunks(
     file: Path, chunk_size: int = CHUNK_SIZE
 ) -> Iterator[pd.DataFrame]:
     """
-    Read CSV file in chunks to optimize memory usage.
+    Read CSV file in chunks for memory-efficient processing.
+
+    Reads semicolon-delimited CSV files from ABR PIP reports in configurable
+    chunks to handle large files without memory overflow. Automatically parses
+    date columns and optimizes data types using pandas categories.
 
     Args:
-        file: Path to the file
-        chunk_size: Size of each chunk
+        file: Path to the CSV/compressed file to read (supports .csv.gz)
+        chunk_size: Number of rows per chunk (default from CHUNK_SIZE constant)
 
     Yields:
-        pd.DataFrame: Data chunk with filename column added
+        pd.DataFrame: Data chunk with processed data types and added filename column
 
     Raises:
-        Exception: If file reading fails
+        Exception: If file reading or parsing fails
+
+    Note:
+        - Uses Latin-1 encoding for Brazilian Portuguese characters
+        - Parses dates in DD/MM/YYYY HH:MM:SS format
+        - Applies categorical types for memory optimization
+        - Adds 'nome_arquivo' column to track data source
     """
+    # Column definitions from ABR PIP system reports
+    # Maps to official PIP layout structure
     names = [
-        "tipo_registro",
-        "numero_bp",
-        "tn_inicial",
-        "cod_receptora",
-        "nome_receptora",
-        "cod_doadora",
-        "nome_doadora",
-        "data_agendamento",
-        "cod_status",
-        "status",
-        "ind_portar_origem",
+        "tipo_registro",        # Record type identifier
+        "numero_bp",            # BP number (portability request ID)
+        "tn_inicial",           # Initial phone number
+        "cod_receptora",        # Receiving carrier code
+        "nome_receptora",       # Receiving carrier name
+        "cod_doadora",          # Donor carrier code
+        "nome_doadora",         # Donor carrier name
+        "data_agendamento",     # Scheduled date for portability
+        "cod_status",           # Status code
+        "status",               # Status description
+        "ind_portar_origem",    # Indicator to port back to origin
     ]
 
+    # Optimize data types for memory efficiency
+    # Use categories for low-cardinality columns (tipo_registro, status)
+    # Use appropriate integer sizes to minimize memory footprint
     dtype = {
-        "tipo_registro": "category",
-        "numero_bp": "int",
-        "tn_inicial": "int",
-        "cod_receptora": "str",
-        "nome_receptora": "str",
-        "cod_doadora": "str",
-        "nome_doadora": "str",
-        "cod_status": "int",
-        "status": "category",
-        "ind_portar_origem": "str",
+        "tipo_registro": "category",   # Limited set of record types
+        "numero_bp": "int",            # BP request number
+        "tn_inicial": "int",           # Phone number as integer
+        "cod_receptora": "str",        # Carrier code (may have leading zeros)
+        "nome_receptora": "str",       # Carrier name text
+        "cod_doadora": "str",          # Carrier code (may have leading zeros)
+        "nome_doadora": "str",         # Carrier name text
+        "cod_status": "int",           # Status code number
+        "status": "category",          # Limited set of status values
+        "ind_portar_origem": "str",    # "Sim" or "Nao" values
     }
 
     try:
@@ -113,22 +143,33 @@ def _process_chunk(df: pd.DataFrame) -> pd.DataFrame:
     """
     Process a data chunk by applying optimized transformations.
 
+    Performs data cleaning and type optimization on portability records:
+    - Converts text indicators to numeric flags (0/1)
+    - Optimizes carrier codes to appropriate integer types
+    - Removes records with missing critical identifiers
+
     Args:
         df: DataFrame chunk to process
 
     Returns:
-        pd.DataFrame: Processed DataFrame with optimized data types
+        pd.DataFrame: Processed DataFrame with optimized data types and cleaned data
+
+    Note:
+        - Maps "Sim"/"Nao" to 1/0 for boolean indicator
+        - Converts carrier codes to Int32 (nullable integer)
+        - Drops rows missing numero_bp or tn_inicial (required fields)
     """
 
-    # Optimized mapping using categorical
+    # Map Portuguese boolean text to numeric flags for database efficiency
     map_ind_portar_origem = {"Sim": 1, "Nao": 0}
 
-    # Apply mapping efficiently
+    # Apply mapping efficiently using pandas map function
     df["ind_portar_origem"] = (
         df["ind_portar_origem"].map(map_ind_portar_origem).astype("int8")
     )
 
-    # Optimize data types
+    # Convert carrier codes to numeric, handling missing values gracefully
+    # Int32 (capital I) allows NULL values, unlike int32
     df["cod_receptora"] = pd.to_numeric(df["cod_receptora"], errors="coerce").astype(
         "Int32"
     )
@@ -137,139 +178,165 @@ def _process_chunk(df: pd.DataFrame) -> pd.DataFrame:
     )
     df["cod_status"] = pd.to_numeric(df["cod_status"], errors="coerce").astype("Int16")
 
-    # Remove rows with missing critical data
+    # Remove rows with missing critical identifiers
+    # Both numero_bp and tn_inicial are required for portability tracking
     df = df.dropna(subset=["numero_bp", "tn_inicial"])
 
     return df
 
-
-def _create_table_if_not_exists(
-    conn, table_name: str = IMPORT_TABLE, schema: str = IMPORT_SCHEMA
-) -> None:
+# function will be called if rebuild_database is True
+def _create_tb_portabilidade_historico() -> bool:
     """
-    Create optimized table if it doesn't exist.
+    Create the tb_portabilidade_historico table.
 
-    Args:
-        conn: Database connection
-        table_name: Name of the table
-        schema: Table schema
+    Returns:
+        bool: Always returns True after successful creation
 
     Raises:
         Exception: If table creation fails
     """
-    create_table_sql = f"""
-    CREATE TABLE IF NOT EXISTS {schema}.{table_name} (
-        tipo_registro INT8,
-        numero_bp INT8 NOT NULL,
-        tn_inicial INT8 NOT NULL,
-        cod_receptora INT2,
-        nome_receptora VARCHAR(100),
-        cod_doadora INT2,
-        nome_doadora VARCHAR(100),
-        data_agendamento TIMESTAMP,
-        cod_status INT2,
-        status VARCHAR(50),
-        ind_portar_origem INT2,
-        nome_arquivo VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    -- Create indexes for performance
-    CREATE INDEX IF NOT EXISTS idx_{table_name}_tn_inicial ON {schema}.{table_name}(tn_inicial);
-    CREATE INDEX IF NOT EXISTS idx_{table_name}_data_agendamento ON {schema}.{table_name}(data_agendamento);
+    with get_db_connection() as conn:
+        try:
+            if not check_if_table_exists(TARGET_SCHEMA, TB_PRESTADORAS):
+                update_table_prestadoras()  # ensure prestadoras table exists
+            logger.info("Creating tb_portabilidade_historico table...")
+            conn.cursor().execute(CREATE_TB_PORTABILIDADE_HISTORICO)
+            conn.commit()
+            logger.info(
+                f"Table {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} created/verified successfully"
+            )
+        except Exception as e:
+            conn.rollback()
+            logger.error(
+                f"Error creating {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}"
+            )
+            raise
+    return True
+
+
+def _drop_tb_portabilidade_historico() -> None:
     """
-
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute(create_table_sql)
-        conn.commit()
-        logger.info(f"  Table {schema}.{table_name} created/verified successfully")
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Error creating table: {e}")
-        raise
-
-
-def _bulk_insert_with_copy(
-    conn, df: pd.DataFrame, table_name: str = IMPORT_TABLE, schema: str = IMPORT_SCHEMA
-) -> None:
-    """
-    Perform bulk insert using PostgreSQL COPY FROM for maximum performance.
-
-    Args:
-        conn: Database connection
-        df: DataFrame to insert
-        table_name: Target table name
-        schema: Target schema
+    Drop the tb_portabilidade_historico table if it exists.
 
     Raises:
-        Exception: If bulk insert fails
+        Exception: If table drop fails.
     """
-    # Create StringIO buffer
-    output = StringIO()
-
-    # Convert DataFrame to CSV in memory
-    df.to_csv(
-        output,
-        sep="\t",
-        header=False,
-        index=False,
-        na_rep="\\N",  # NULL representation for PostgreSQL
-        date_format="%Y-%m-%d %H:%M:%S",
-    )
-
-    output.seek(0)
-
-    try:
-        with conn.cursor() as cursor:
-            # Use COPY FROM for ultra-fast insertion
-            cursor.copy_expert(
-                f"""
-                COPY {schema}.{table_name} (
-                    tipo_registro, 
-                    numero_bp, 
-                    tn_inicial, 
-                    cod_receptora,
-                    nome_receptora, 
-                    cod_doadora,
-                    nome_doadora, 
-                    data_agendamento,
-                    cod_status, 
-                    status, 
-                    ind_portar_origem, 
-                    nome_arquivo
-                ) FROM STDIN WITH CSV DELIMITER E'\\t' NULL '\\N'
-                """,
-                output,
+    with get_db_connection() as conn:
+        try:
+            logger.info(
+                f"Dropping {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table..."
             )
-        conn.commit()
+            conn.cursor().execute(
+                f"DROP TABLE IF EXISTS {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} CASCADE;"
+            )
+            conn.commit()
+            logger.info(
+                f"Table {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} dropped successfully"
+            )
+        except Exception as e:
+            conn.rollback()
+            logger.error(
+                f"Error dropping {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}"
+            )
+            raise
 
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Error in insertion: {e}")
-        raise
+
+def _create_tb_portabilidade_historico_indexes() -> None:
+    """
+    Create indexes for the tb_portabilidade_historico table.
+
+    Raises:
+        Exception: If index creation fails.
+    """
+    with get_db_connection() as conn:
+        try:
+            logger.info(
+                f"Creating indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table..."
+            )
+            conn.cursor().execute(CREATE_TB_PORTABILIDADE_HISTORICO_INDEXES)
+            conn.commit()
+            logger.info(
+                f"Indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} created successfully"
+            )
+        except Exception as e:
+            conn.rollback()
+            logger.error(
+                f"Error creating indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}"
+            )
+            raise
 
 
-def _import_single_file(
+def _drop_tb_portabilidade_historico_indexes() -> None:
+    """
+    Drop indexes for the tb_portabilidade_historico table.
+
+    Raises:
+        Exception: If index drop fails.
+    """
+    with get_db_connection() as conn:
+        try:
+            logger.info(
+                f"Dropping indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table..."
+            )
+            conn.cursor().execute(DROP_TB_PORTABILIDADE_HISTORICO_INDEXES)
+            conn.commit()
+            logger.info(
+                f"Indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} dropped successfully"
+            )
+        except Exception as e:
+            conn.rollback()
+            logger.error(
+                f"Error dropping indexes for {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}"
+            )
+            raise
+
+
+def _update_tb_portabilidade_historico() -> None:
+    """
+    Update tb_portabilidade_historico with new records from the import table.
+
+    Transfers data from the import table to the partitioned history table,
+    performing an upsert operation that updates existing records or inserts
+    new ones based on the primary key (cn, tn_inicial, data_agendamento).
+
+    Raises:
+        Exception: If table update fails
+    """
+    with get_db_connection() as conn:
+        try:
+            logger.info(
+                f"Updating {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table..."
+            )
+            conn.cursor().execute(UPDATE_TB_PORTABILIDADE_HISTORICO)
+            conn.commit()
+            logger.info(
+                f"Table {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} updated successfully"
+            )
+        except Exception as e:
+            conn.rollback()
+            logger.error(
+                f"Error updating {TARGET_SCHEMA}.{TB_PORTABILIDADE_HISTORICO} table: {e}"
+            )
+            raise
+
+
+def _import_single_pip_report_file(
     file: Path,
-    table_name: str = IMPORT_TABLE,
-    schema: str = IMPORT_SCHEMA,
-    truncate_table: bool = False,
 ) -> int:
     """
-    Import a single portability file into the database.
+    Import a single portability file into the staging table.
+
+    Processes the CSV file in chunks and performs bulk inserts using PostgreSQL
+    COPY FROM for optimal performance.
 
     Args:
-        file: Path to the file to import
-        table_name: Target table name
-        schema: Target schema
-        truncate_table: Whether to truncate table before import
+        file: Path to the CSV file to import
 
     Returns:
-        int: Number of rows imported
+        int: Total number of rows imported from the file
 
     Raises:
-        Exception: If import fails
+        Exception: If file reading or database insertion fails
     """
     start_time = time.time()
     total_rows = 0
@@ -278,30 +345,20 @@ def _import_single_file(
 
     try:
         with get_db_connection() as conn:
-            # Create table if necessary
-            _create_table_if_not_exists(conn, table_name, schema)
-            # Truncate table if requested
-            if truncate_table:
-                with conn.cursor() as cursor:
-                    cursor.execute(f"TRUNCATE TABLE {schema}.{table_name}")
-                    conn.commit()
-                    logger.info("  Table truncated")
-
-            # Process file in chunks
+            # Process file in memory-efficient chunks to handle large datasets
             chunk_count = 0
             for chunk_df in _read_file_in_chunks(file):
                 chunk_count += 1
                 chunk_start = time.time()
 
-                # Insert chunk using COPY FROM
-                _bulk_insert_with_copy(conn, chunk_df, table_name, schema)
-
+                # Bulk insert using PostgreSQL COPY for maximum performance
+                bulk_insert_with_copy(conn, chunk_df, COPY_TO_IMPORT_TABLE_PORTABILIDADE)
                 chunk_rows = len(chunk_df)
                 total_rows += chunk_rows
                 chunk_time = time.time() - chunk_start
                 chunk_time_str = f"{chunk_time:.2f}".replace(".", ",")
                 logger.info(
-                    f"  Chunk {chunk_count:03d}: {chunk_rows:,} linhas inseridas em {chunk_time_str}s ({chunk_rows / chunk_time:,.0f} linhas/s)".replace(
+                    f"  Chunk {chunk_count:03d}: {chunk_rows:,} lines inserted in {chunk_time_str}s ({chunk_rows / chunk_time:,.0f} lines/s)".replace(
                         ",", "."
                     )
                 )
@@ -314,7 +371,7 @@ def _import_single_file(
         insert_speed_str = f"{total_rows / total_time:,.0f}".replace(",", ".")
 
     except Exception as e:
-        logger.error(f"Error during import: {e}")
+        logger.error(f"Error during import of file {file.name}: {e}")
         raise
 
     else:
@@ -324,21 +381,28 @@ def _import_single_file(
         return total_rows
 
 
-def _import_multiple_files(
+def _import_multiple_pip_reports_files(
     file_list: list[Path],
-    table_name: str = IMPORT_TABLE,
-    schema: str = IMPORT_SCHEMA,
-    truncate_table: bool = False,
 ) -> dict:
     """
-    Process multiple portability files sequentially.
+    Process multiple portability files sequentially into staging table.
+
+    Truncates the staging table (tb_portabilidade) before processing begins,
+    then imports all files using chunked reads and bulk inserts via PostgreSQL
+    COPY command for optimal performance. Each file is processed sequentially
+    with detailed statistics tracking.
 
     Args:
-        file_list: List of files to process
-        truncate_table: Whether to truncate table before first import
+        file_list: List of Path objects pointing to compressed CSV files (*.csv.gz)
 
     Returns:
-        dict: Detailed processing statistics
+        dict: Dictionary with filename as key and processing statistics as value.
+              Each value contains:
+              - status: 'success' or 'error'
+              - time: Processing time in seconds
+              - lines: Number of rows processed
+              - speed: Import speed in rows/second
+              - error: Error message (only if status is 'error')
     """
     if not file_list or not isinstance(file_list, list):
         logger.warning("File list is empty or not a list.")
@@ -350,77 +414,90 @@ def _import_multiple_files(
     results = {}
     total_rows_all_files = 0
 
+    # Prepare staging table: create if not exists, then truncate for clean import
+    execute_create_table(
+        IMPORT_SCHEMA,
+        IMPORT_TABLE_PORTABILIDADE,
+        CREATE_IMPORT_TABLE_PORTABILIDADE,
+        logger,
+    )
+    # Clear any existing data to ensure clean import state
+    execute_truncate_table(IMPORT_SCHEMA, IMPORT_TABLE_PORTABILIDADE, logger)
+
+    # Process each file sequentially with progress tracking
     for idx, file in enumerate(file_list, 1):
         logger.info(f"📁 Processing file {idx}/{len(file_list)}:")
 
         try:
             file_start = time.time()
 
-            # Only truncate on first import if requested
-            should_truncate = truncate_table and idx == 1
-
             # Import file
-            file_rows = _import_single_file(
-                file,
-                table_name=table_name,
-                schema=schema,
-                truncate_table=should_truncate,
-            )
-
+            file_rows = _import_single_pip_report_file(file)
             file_time = time.time() - file_start
-
             total_rows_all_files += file_rows
-
             results[file.name] = {
                 "status": "success",
-                "tempo": file_time,
-                "linhas": file_rows,
-                "velocidade": file_rows / file_time if file_time > 0 else 0,
+                "time": file_time,
+                "lines": file_rows,
+                "speed": file_rows / file_time if file_time > 0 else 0,
             }
 
         except Exception as e:
             logger.error(f"❌ Error processing {file.name}: {e}")
             results[file.name] = {
                 "status": "error",
-                "erro": str(e),
-                "tempo": 0,
-                "linhas": 0,
-                "velocidade": 0,
+                "error": str(e),
+                "time": 0,
+                "lines": 0,
+                "speed": 0,
             }
 
     total_time = time.time() - start_time_total
 
-    # Final report
-    sucessos = sum(1 for r in results.values() if r["status"] == "success")
-    erros = len(results) - sucessos
+    # Generate comprehensive import statistics report
+    successes = sum(1 for r in results.values() if r["status"] == "success")
+    errors = len(results) - successes
     total_rows_all_files_str = f"{total_rows_all_files:,}".replace(",", ".")
-    total_time_str = f"{total_time:.2f}".replace(".", ",")
+    
+    # Format time for human-readable display (seconds, minutes, or hours)
+    if total_time < 60:
+        total_time_str = f"{total_time:.2f}s".replace(".", ",")
+    elif total_time < 3600:
+        minutes = int(total_time // 60)
+        seconds = total_time % 60
+        total_time_str = f"{minutes}m {seconds:.2f}s".replace(".", ",")
+    else:
+        hours = int(total_time // 3600)
+        minutes = int((total_time % 3600) // 60)
+        seconds = total_time % 60
+        total_time_str = f"{hours}h {minutes}m {seconds:.2f}s".replace(".", ",")
+    
     avg_speed_str = f"{total_rows_all_files / total_time:,.0f}".replace(",", ".")
 
+    # Log comprehensive import summary with statistics
     logger.info("File import report")
-    logger.info("════════════════════════════════════")
+    logger.info("══════════════════")
     logger.info(f"📊 Files processed: {len(file_list)}")
-    logger.info(f"✅ Successes: {sucessos}")
-    logger.info(f"❌ Errors: {erros}")
+    logger.info(f"✅ Successes: {successes}")
+    logger.info(f"❌ Errors: {errors}")
     logger.info(f"📈 Total rows: {total_rows_all_files_str}")
-    logger.info(f"🕑 Total time: {total_time_str}s")
+    logger.info(f"🕑 Total time: {total_time_str}")
     logger.info(f"🚀 Average speed: {avg_speed_str} rows/s")
 
-    if erros > 0:
+    # List files that encountered errors during import
+    if errors > 0:
         logger.info("Files with errors:")
         for file_name, stats in results.items():
             if stats["status"] == "error":
-                logger.info(f" - {file_name}: {stats['erro']}")
-
+                logger.info(f" - {file_name}: {stats['error']}")
     return results
 
 
 def load_pip_reports(
     input_path: str,
-    table_name: str = IMPORT_TABLE,
-    schema: str = IMPORT_SCHEMA,
-    truncate_table: bool = False,
+    drop_table: bool = False,
     rebuild_database: bool = False,
+    rebuild_indexes: bool = False,
 ) -> dict:
     """
     Imports portability data from a file or folder.
@@ -450,11 +527,18 @@ def load_pip_reports(
     1;7266084;2139838690;0123;TIM SA;0121;EMBRATEL;11/06/2010 00:00:00;1;Ativo;Nao
 
     Args:
-        input_file_or_folder: Path to the file or folder
-        truncate_table: Whether to truncate the table before import
+        input_path: Path to a single CSV file or directory containing CSV files
+        drop_table: Whether to drop the import staging table after import.
+                    Default is False to append data from multiple imports.
+        rebuild_database: Whether to drop and recreate tb_portabilidade_historico
+                         table. When True, indexes are also rebuilt automatically.
+        rebuild_indexes: Whether to drop and recreate all indexes. Use after
+                        large data imports for optimization. Automatically enabled
+                        when table is newly created.
 
     Returns:
-        dict: Detailed processing statistics
+        dict: Processing statistics per file with keys as filenames and values
+              containing status, processing time, line count, and import speed.
 
     Raises:
         FileNotFoundError: If the input path does not exist
@@ -471,13 +555,38 @@ def load_pip_reports(
     else:
         logger.error(f"Invalid path: {input_path}")
         return {}
-    
-    if rebuild_database:
-        raise NotImplementedError("Rebuild database functionality is not implemented yet.")
 
-    return _import_multiple_files(
-        files_to_import,
-        table_name=table_name,
-        schema=schema,
-        truncate_table=truncate_table,
-    )
+    if len(files_to_import) == 0:
+        logger.warning(f"No CSV (*.csv.gz) files found in {input_path}")
+        return {}
+
+    # Step 1: Import all PIP report files to staging table
+    results = _import_multiple_pip_reports_files(files_to_import)
+
+    # Step 2: Rebuild target table/indexes if requested (for fresh database setup)
+    if rebuild_database:
+        _drop_tb_portabilidade_historico()
+        _create_tb_portabilidade_historico()
+    elif rebuild_indexes:
+        # Only rebuild indexes (useful after large data imports)
+        _drop_tb_portabilidade_historico_indexes()
+
+    # Step 3: Create indexes if table was just created (always needed for new tables)
+    if not check_if_table_exists(TARGET_SCHEMA, TB_PORTABILIDADE_HISTORICO):
+        rebuild_indexes = _create_tb_portabilidade_historico()
+
+    # Step 4: Transfer data from staging to partitioned history table (upsert)
+    _update_tb_portabilidade_historico()
+
+    # Step 5: Rebuild indexes if requested or if table was newly created
+    if rebuild_indexes or rebuild_database:
+        _create_tb_portabilidade_historico_indexes()
+
+    # Step 6: Update provider reference table with any new carriers found
+    update_table_prestadoras()
+
+    # Step 7: Optionally drop staging table to free disk space
+    if drop_table:
+        execute_drop_table(IMPORT_SCHEMA, IMPORT_TABLE_PORTABILIDADE, logger)
+
+    return results

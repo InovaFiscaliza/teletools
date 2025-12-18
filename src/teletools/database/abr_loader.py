@@ -3,38 +3,42 @@
 Command-line interface for importing Brazilian telecom data from
 ABR Telecom into a PostgreSQL database.
 
-This CLI provides two main commands:
+This CLI provides three main commands:
 
-1. load-portability: Import phone number portability data from PIP reports
-2. load-numbering-plan: Import numbering plan data from NSAPN public files (STFC, SMP, SME, CNG, SUP)
+1. load-pip: Import phone number portability data from PIP reports
+2. load-nsapn: Import numbering plan data from NSAPN public files (STFC, SMP, SME, CNG, SUP)
+3. test-connection: Test PostgreSQL database connectivity and configuration
 
 Features:
 - Import single files or entire directories
 - Automatic file type detection (for numbering plan)
-- Configure target database table and schema
 - Control data loading behavior (truncate vs append)
 - Monitor import progress with detailed logging
 - Optimized chunked processing for large files
 
 Usage Examples:
     # Import portability data
-    abr_loader load-portability /path/to/pip_report.csv.gz
+    abr_loader load-pip /path/to/pip_report.csv.gz
 
     # Import numbering plan data (ZIP files)
-    abr_loader load-numbering-plan /path/to/nsapn_files/
+    abr_loader load-nsapn /path/to/nsapn_files/
 
-    # Import to custom table and schema
-    abr_loader load-portability /path/to/data/ custom_table custom_schema
+    # Import with rebuild database option
+    abr_loader load-pip /path/to/data/ --rebuild-database
 
     # Import without truncating existing data
-    abr_loader load-portability /path/to/data/ --no-truncate-table
-    abr_loader load-numbering-plan /path/to/data/ entrada --no-truncate-table
+    abr_loader load-pip /path/to/data/ --no-truncate-table
+
+    # Test database connection
+    abr_loader test-connection
 
 Requirements:
-    - PostgreSQL database connection configured in _database_config.py
+    - PostgreSQL database connection configured via .env file
+    - Required environment variables: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
+    - Optional: DB_SCHEMA (defaults to 'cdr')
     - For portability: CSV files in ABR PIP format (*.csv.gz)
     - For numbering plan: ZIP files from ABR NSAPN portal (*.zip)
-    - Required Python packages: typer, pandas, psycopg2
+    - Required Python packages: typer, pandas, psycopg2, python-dotenv
 
 Data Sources:
     - Portability: ABR Telecom PIP system reports (restricted access)
@@ -69,38 +73,31 @@ def load_pip(
             metavar="INPUT_PATH",
         ),
     ],
-    table_name: Annotated[
-        str,
-        typer.Argument(
-            help="Database table name for data storage. "
-            "Table will be created automatically if it doesn't exist.",
-            metavar="TABLE_NAME",
-        ),
-    ] = "abr_portabilidade",
-    schema: Annotated[
-        str,
-        typer.Argument(
-            help="Database schema name for table organization. "
-            "Schema must exist in the target database.",
-            metavar="SCHEMA_NAME",
-        ),
-    ] = "entrada",
-    truncate_table: Annotated[
+    drop_table: Annotated[
         bool,
         typer.Option(
-            "--truncate-table/--no-truncate-table",
-            help="Truncate table before import. "
-            "When enabled, existing data will be deleted before import. "
-            "Use --no-truncate-table to append to existing data.",
+            "--drop-table/--no-drop-table",
+            help="Drop table after import. "
+            "When enabled, imported data will be deleted after import. "
+            "Use --no-drop-table to keep it after import.",
         ),
     ] = True,
     rebuild_database: Annotated[
         bool,
         typer.Option(
             "--rebuild-database/--no-rebuild-database",
-            help="Rebuild database entire portability database. "
+            help="Rebuild entire portability database. "
             "When enabled, existing data will be deleted before import. "
             "Use --no-rebuild-database to append to existing data.",
+        ),
+    ] = False,
+    rebuild_indexes: Annotated[
+        bool,
+        typer.Option(
+            "--rebuild-indexes/--no-rebuild-indexes",
+            help="Rebuild portability database indexes."
+            "When enabled, existing indexes will be deleted before import and rebuilt. "
+            "Use --no-rebuild-indexes to keep existing indexes.",
         ),
     ] = False,
 ) -> None:
@@ -119,10 +116,9 @@ def load_pip(
 
     Args:
         input_path: Path to CSV file or directory containing CSV files
-        table_name: Target database table (created if doesn't exist)
-        schema: Target database schema (must already exist)
-        truncate_table: Whether to clear existing data before import
-        rebuild_database: Whether to rebuild the entire database before import
+        drop_table: Whether to drop staging table after import (default: False)
+        rebuild_database: Whether to rebuild the entire portability database before import
+        rebuild_indexes: Whether to rebuild portability database indexes
 
     Returns:
         None: Results are logged to console and log file
@@ -132,22 +128,21 @@ def load_pip(
 
     Examples:
         Import single file with default settings:
-        $ abr_loader load-portability data.csv.gz
+        $ abr_loader load-pip data.csv.gz
 
-        Import directory to custom table:
-        $ abr_loader load-portability /data/ my_table my_schema
+        Import directory with rebuild database:
+        $ abr_loader load-pip /data/ --rebuild-database
 
-        Append data without truncating:
-        $ abr_loader load-portability /data/ --no-truncate-table
+        Drop staging table after import:
+        $ abr_loader load-pip /data/ --drop-table
     """
 
     # Execute the import process
     load_pip_reports(
         input_path=input_path,
-        table_name=table_name,
-        schema=schema,
-        truncate_table=truncate_table,
+        drop_table=drop_table,
         rebuild_database=rebuild_database,
+        rebuild_indexes=rebuild_indexes,
     )
 
 
@@ -157,28 +152,20 @@ def load_nsapn(
         str,
         typer.Argument(
             help="Path to input file or directory. "
-            "If directory provided, all *.csv.gz files will be processed recursively. "
+            "If directory provided, all *.zip files will be processed recursively. "
             "Supports single files or batch processing.",
             metavar="INPUT_PATH",
         ),
     ],
-    schema: Annotated[
-        str,
-        typer.Argument(
-            help="Database schema name for table organization. "
-            "Schema must exist in the target database.",
-            metavar="SCHEMA_NAME",
-        ),
-    ] = "entrada",
-    truncate_table: Annotated[
+    drop_table: Annotated[
         bool,
         typer.Option(
-            "--truncate-table/--no-truncate-table",
-            help="Truncate table before import. "
-            "When enabled, existing data will be deleted before import. "
-            "Use --no-truncate-table to append to existing data.",
+            "--drop-table/--no-drop-table",
+            help="Drop table after import. "
+            "When enabled, imported data will be deleted after import. "
+            "Use --no-drop-table to keep it after import.",
         ),
-    ] = True,
+    ] = False,
 ) -> None:
     """Import ABR numbering plan data into PostgreSQL database.
 
@@ -207,8 +194,7 @@ def load_nsapn(
 
     Args:
         input_path: Path to ZIP file or directory containing ZIP files
-        schema: Target database schema (must already exist)
-        truncate_table: Whether to clear existing data before import
+        drop_table: Whether to drop existing data after import
 
     Returns:
         None: Results are logged to console and log file
@@ -217,18 +203,16 @@ def load_nsapn(
         typer.Exit: On file not found, database connection errors, or import failures
 
     Examples:
-        Import single ZIP file with default settings:
-        $ abr_loader load-numbering-plan STFC_202401.zip
+        Import single ZIP file:
+        $ abr_loader load-nsapn STFC_202401.zip
 
-        Import directory of ZIP files to custom schema:
-        $ abr_loader load-numbering-plan /data/nsapn/ custom_schema
+        Import directory of ZIP files:
+        $ abr_loader load-nsapn /data/nsapn/
 
         Append data without truncating:
-        $ abr_loader load-numbering-plan /data/nsapn/ --no-truncate-table
+        $ abr_loader load-nsapn /data/nsapn/ --no-drop-table
     """
-    load_nsapn_files(
-        input_path=input_path, schema=schema, truncate_table=truncate_table
-    )
+    load_nsapn_files(input_path=input_path, drop_table=drop_table)
 
 
 @app.command(name="test-connection")

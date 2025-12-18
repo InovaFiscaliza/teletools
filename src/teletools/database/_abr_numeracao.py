@@ -1,29 +1,29 @@
 """ABR Numbering Data Import Module.
 
 This module provides functionality to import Brazilian telecom numbering data
-plan from ABR reports. It handles different types of CSV files with numbering 
-information and imports them into a PostgreSQL database with optimized 
+plan from ABR reports. It handles different types of CSV files with numbering
+information and imports them into a PostgreSQL database with optimized
 performance using chunked processing and bulk insert operations.
 
 Data Sources - Official ABR Telecom Portal:
     All files for import must be downloaded from the official ABR portal:
-    
+
     - CNG (Código Não Geográfico):
       https://easi.abrtelecom.com.br/nsapn/#/public/files/download/cng
       Free call numbers (0800, 0300, etc.)
-    
+
     - SME (Serviço Móvel Especializado):
       https://easi.abrtelecom.com.br/nsapn/#/public/files/download/sme
       Specialized mobile service numbering
-    
+
     - SMP (Serviço Móvel Pessoal):
       https://easi.abrtelecom.com.br/nsapn/#/public/files/download/smp
       Personal mobile service numbering
-    
+
     - STFC (Serviço Telefônico Fixo Comutado):
       https://easi.abrtelecom.com.br/nsapn/#/public/files/download/stfc
       Fixed telephony service numbering
-    
+
     - STFC-FATB (Serviço Telefônico Fixo Comutado - Fora da Area de Tarifa Básica):
       https://easi.abrtelecom.com.br/nsapn/#/public/files/download/stfc-fatb
       Fixed telephony outside basic tariff area numbering
@@ -32,7 +32,7 @@ Data Sources - Official ABR Telecom Portal:
         https://easi.abrtelecom.com.br/nsapn/#/public/files/download/sup
         Public utility service numbering
 
-    Note: These files contain official ANATEL numbering data and are 
+    Note: These files contain official ANATEL numbering data and are
     updated regularly. Always download the latest versions for accurate data.
 
 Supported File Types:
@@ -78,459 +78,183 @@ from io import StringIO
 from pathlib import Path
 
 import pandas as pd
-from ._database_config import get_db_connection
 
 from teletools.utils import setup_logger
+
+# Import and target table names
+# Import table definitions and configurations
+from ._abr_numeracao_sql_queries import (
+    CREATE_IMPORT_TABLE_CNG,
+    CREATE_IMPORT_TABLE_STFC_SMP_SME,
+    CREATE_IMPORT_TABLE_SUP,
+    CREATE_TB_NUMERACAO,
+    FILE_TYPE_CONFIG,
+    IMPORT_SCHEMA,
+    IMPORT_TABLE_CNG,
+    IMPORT_TABLE_STFC_SMP_SME,
+    IMPORT_TABLE_SUP,
+)
+from ._abr_prestadoras import update_table_prestadoras
+
+# Performance settings
+from ._database_config import (
+    CHUNK_SIZE,
+    TARGET_SCHEMA,
+    TB_NUMERACAO,
+    bulk_insert_with_copy,
+    execute_create_table,
+    execute_drop_table,
+    execute_truncate_table,
+    get_db_connection,
+)
 
 # Configure logger
 logger = setup_logger("abr_numeracao.log")
 
-# Performance settings
-CHUNK_SIZE = 100000  # Process in chunks of 100k rows
 
-# Table and schema names
-IMPORT_SCHEMA = "entrada"
-TABLE_NUMERACAO = "abr_numeracao_teletools"
-TABLE_CNG = "abr_cng_teletools"
-TABLE_SUP = "abr_sup_teletools"
+def _get_file_config(file: Path) -> dict:
+    """Get configuration for specific file type based on filename.
 
-# Column definitions for different file types
-
-STFC_FILE_COLUMNS = {
-    "nome_prestadora": "str",
-    "cnpj_prestadora": "str",
-    "uf": "str",
-    "cn": "str",
-    "prefixo": "str",
-    "faixa_inicial": "str",
-    "faixa_final": "str",
-    "codigo_cnl": "str",
-    "nome_localidade": "str",
-    "area_local": "str",
-    "sigla_area_local": "str",
-    "codigo_area_local": "str",
-    "status": "str",
-}
-
-STFC_TABLE_COLUMNS = list(STFC_FILE_COLUMNS.keys()) + ["servico", "nome_arquivo"]
-
-SMP_SME_FILE_COLUMNS = {
-    "nome_prestadora": "str",
-    "cnpj_prestadora": "str",
-    "cn": "str",
-    "prefixo": "str",
-    "faixa_inicial": "str",
-    "faixa_final": "str",
-    "status": "str",
-}
-
-SMP_SME_TABLE_COLUMNS = list(SMP_SME_FILE_COLUMNS.keys()) + ["servico", "nome_arquivo"]
-
-CNG_FILE_COLUMNS = {
-    "nome_prestadora": "str",
-    "cnpj_prestadora": "str",
-    "codigo_nao_geografico": "str",
-    "status": "str",
-}
-
-CNG_TABLE_COLUMNS = list(CNG_FILE_COLUMNS.keys()) + ["nome_arquivo"]
-
-SUP_FILE_COLUMNS = {
-    "nome_prestadora": "str",
-    "cnpj_prestadora": "str",
-    "numero_sup": "str",
-    "extensao": "str",
-    "uf": "str",
-    "cn": "str",
-    "codigo_municipio": "str",
-    "nome_municipio": "str",
-    "instituicao": "str",
-    "tipo": "str",
-    "status": "str",
-}
-
-SUP_TABLE_COLUMNS = list(SUP_FILE_COLUMNS.keys()) + ["nome_arquivo"]
-
-def _detect_file_type(file: Path) -> str:
-    """Detect file type based on filename prefix.
+    Automatically detects file type from filename prefix and returns
+    the appropriate configuration for processing.
 
     Args:
-        file: Path to the file
+        file: Path to the file to analyze
 
     Returns:
-        str: File type ('STFC', 'SMP_SME', or 'CNG')
+        dict: Configuration including columns, table name, data types,
+              and file type identifier
+
+    Raises:
+        ValueError: If file type cannot be determined from filename
     """
+
     filename_upper = file.name.upper()
 
     if filename_upper.startswith("STFC"):
-        return "STFC"
+        file_type = "STFC"
     elif filename_upper.startswith(("SMP", "SME")):
-        return "SMP_SME"
+        file_type = "SMP_SME"
     elif filename_upper.startswith("CNG"):
-        return "CNG"
+        file_type = "CNG"
     elif filename_upper.startswith("SUP"):
-        return "SUP"
+        file_type = "SUP"
     else:
-        # Default to STFC if cannot determine
         logger.warning(f"Cannot determine file type for {file.name}.")
-        return None
+        raise ValueError(f"Unknown file type for file {file.name}")
 
-
-def _get_file_config(file_type: str) -> dict:
-    """Get configuration for specific file type.
-
-    Args:
-        file_type: Type of file ('STFC', 'SMP_SME', or 'CNG')
-
-    Returns:
-        dict: Configuration including columns, table name, and data types
-    """
-    if file_type == "STFC":
-        return {
-            "columns": list(STFC_FILE_COLUMNS.keys()),
-            "table": TABLE_NUMERACAO,
-            "dtype": STFC_FILE_COLUMNS,
-        }
-    elif file_type == "SMP_SME":
-        return {
-            "columns": list(SMP_SME_FILE_COLUMNS.keys()),
-            "table": TABLE_NUMERACAO,
-            "dtype": SMP_SME_FILE_COLUMNS,
-        }
-    elif file_type == "CNG":
-        return {
-            "columns": list(CNG_FILE_COLUMNS.keys()),
-            "table": TABLE_CNG,
-            "dtype": CNG_FILE_COLUMNS,
-        }
-    elif file_type == "SUP":
-        return {
-            "columns": list(SUP_FILE_COLUMNS.keys()),
-            "table": TABLE_SUP,
-            "dtype": SUP_FILE_COLUMNS,
-        }
+    if file_type in FILE_TYPE_CONFIG:
+        return FILE_TYPE_CONFIG[file_type]
     else:
-        raise ValueError(f"Unknown file type: {file_type}")
+        raise ValueError(f"Unknown file type: {file_type} for file {file.name}")
 
 
 def _read_file_in_chunks(
-    file: Path, chunk_size: int = CHUNK_SIZE
-) -> Iterator[tuple[pd.DataFrame, str]]:
+    file: Path, file_config: dict, chunk_size: int = CHUNK_SIZE
+) -> Iterator[pd.DataFrame]:
     """
-    Read CSV file in chunks to optimize memory usage.
+    Read CSV file in chunks for memory-efficient processing.
+
+    Reads semicolon-delimited CSV files with Latin-1 encoding in configurable
+    chunks. Automatically adds service type and filename columns to each chunk.
 
     Args:
-        file: Path to the file
-        chunk_size: Size of each chunk
+        file: Path to the CSV file to read
+        file_config: Configuration dictionary with columns, dtypes, and file type
+        chunk_size: Number of rows per chunk (default from CHUNK_SIZE constant)
 
     Yields:
-        tuple: (DataFrame chunk with filename column added, file_type)
+        pd.DataFrame: Data chunk with 'servico' (for STFC/SMP_SME) and
+                     'nome_arquivo' columns added
 
     Raises:
-        Exception: If file reading fails
+        Exception: If file reading or parsing fails
     """
-    # Detect file type
-    file_type = _detect_file_type(file)
-    config = _get_file_config(file_type)
-
-    logger.info(f"  File type detected: {file_type}")
 
     try:
         # Use chunksize for optimized reading
+
         chunk_reader = pd.read_csv(
             file,
             sep=";",
             encoding="latin1",
             header=0,
-            names=config["columns"],
+            names=file_config["file_columns"],
             index_col=False,
             chunksize=chunk_size,
-            dtype=config["dtype"],
+            dtype=file_config["dtype"],
             low_memory=True,
         )
 
         for chunk in chunk_reader:
             # Add servico column for telephony files
-            if file_type in ("STFC", "SMP_SME"):
-                chunk["servico"] = file_type
+            if file_config["file_type"] in ("STFC", "SMP_SME"):
+                chunk["servico"] = file_config["file_type"]
             # Add filename column
             chunk["nome_arquivo"] = file.name
-            yield chunk, file_type
-
+            yield chunk
     except Exception as e:
-        logger.error(f"Error reading file {file}: {e}")
-        raise
-
-
-def _create_numeracao_table_if_not_exists(
-    conn, table_name: str = TABLE_NUMERACAO, schema: str = IMPORT_SCHEMA
-) -> None:
-    """
-    Create numbering table if it doesn't exist.
-
-    Args:
-        conn: Database connection
-        table_name: Name of the table
-        schema: Table schema
-
-    Raises:
-        Exception: If table creation fails
-    """
-    create_table_sql = f"""
-    CREATE TABLE IF NOT EXISTS {schema}.{table_name} (
-        nome_prestadora VARCHAR(200),
-        cnpj_prestadora VARCHAR(20),
-        uf VARCHAR(2),
-        cn VARCHAR(10),
-        prefixo VARCHAR(10),
-        faixa_inicial VARCHAR(20),
-        faixa_final VARCHAR(20),
-        codigo_cnl VARCHAR(10),
-        nome_localidade VARCHAR(200),
-        area_local VARCHAR(100),
-        sigla_area_local VARCHAR(10),
-        codigo_area_local VARCHAR(10),
-        status VARCHAR(50),
-        servico VARCHAR(10),
-        nome_arquivo VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    -- Create indexes for performance
-    CREATE INDEX IF NOT EXISTS idx_{table_name}_faixa_inicial ON {schema}.{table_name}(faixa_inicial);
-    CREATE INDEX IF NOT EXISTS idx_{table_name}_faixa_final ON {schema}.{table_name}(faixa_final);
-    CREATE INDEX IF NOT EXISTS idx_{table_name}_cnpj ON {schema}.{table_name}(cnpj_prestadora);
-    """
-
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute(create_table_sql)
-        conn.commit()
-        logger.info(f"  Table {schema}.{table_name} created/verified successfully")
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"  Error creating table: {e}")
-        raise
-
-
-def _create_cng_table_if_not_exists(
-    conn, table_name: str = TABLE_CNG, schema: str = IMPORT_SCHEMA
-) -> None:
-    """
-    Create CNG table if it doesn't exist.
-
-    Args:
-        conn: Database connection
-        table_name: Name of the table
-        schema: Table schema
-
-    Raises:
-        Exception: If table creation fails
-    """
-    create_table_sql = f"""
-    CREATE TABLE IF NOT EXISTS {schema}.{table_name} (
-        nome_prestadora VARCHAR(200),
-        cnpj_prestadora VARCHAR(20),
-        codigo_nao_geografico VARCHAR(20),
-        status VARCHAR(50),
-        nome_arquivo VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    -- Create indexes for performance
-    CREATE INDEX IF NOT EXISTS idx_{table_name}_codigo_nao_geografico ON {schema}.{table_name}(codigo_nao_geografico);
-    CREATE INDEX IF NOT EXISTS idx_{table_name}_cnpj ON {schema}.{table_name}(cnpj_prestadora);
-    """
-
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute(create_table_sql)
-        conn.commit()
-        logger.info(f"  Table {schema}.{table_name} created/verified successfully")
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Error creating table: {e}")
-        raise
-
-def _create_sup_table_if_not_exists(
-    conn, table_name: str = TABLE_SUP, schema: str = IMPORT_SCHEMA
-) -> None:
-    """
-    Create SUP table if it doesn't exist.
-
-    Args:
-        conn: Database connection
-        table_name: Name of the table
-        schema: Table schema
-    
-    Raises:
-        Exception: If table creation fails
-    """
-    create_table_sql = f"""
-    CREATE TABLE IF NOT EXISTS {schema}.{table_name} (
-        nome_prestadora VARCHAR(200),
-        cnpj_prestadora VARCHAR(20),
-        numero_sup VARCHAR(20),
-        extensao VARCHAR(10),
-        uf VARCHAR(2),
-        cn VARCHAR(10),
-        codigo_municipio VARCHAR(10),
-        nome_municipio VARCHAR(200),
-        instituicao VARCHAR(100),
-        tipo VARCHAR(50),
-        status VARCHAR(50),
-        nome_arquivo VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- Create indexes for performance
-    CREATE INDEX IF NOT EXISTS idx_{table_name}_numero_sup ON {schema}.{table_name}(numero_sup);
-    """
-
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute(create_table_sql)
-        conn.commit()
-        logger.info(f"  Table {schema}.{table_name} created/verified successfully")
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Error creating table: {e}")
-        raise
-
-def _bulk_insert_with_copy(
-    conn, df: pd.DataFrame, file_type: str, schema: str = IMPORT_SCHEMA
-) -> None:
-    """
-    Perform bulk insert using PostgreSQL COPY FROM for maximum performance.
-
-    Args:
-        conn: Database connection
-        df: DataFrame to insert
-        file_type: Type of file being processed
-        schema: Target schema
-
-    Raises:
-        Exception: If bulk insert fails
-    """
-    config = _get_file_config(file_type)
-    table_name = config["table"]
-
-    # Create StringIO buffer
-    output = StringIO()
-
-    # Convert DataFrame to CSV in memory
-    df.to_csv(
-        output,
-        sep="\t",
-        header=False,
-        index=False,
-        na_rep="\\N",  # NULL representation for PostgreSQL
-    )
-
-    output.seek(0)
-
-    # Define column list for COPY command
-    if file_type == "CNG":
-        copy_columns = ", ".join(CNG_TABLE_COLUMNS)
-    elif file_type == "SMP_SME":
-        copy_columns = ", ".join(SMP_SME_TABLE_COLUMNS)
-    elif file_type == "SUP":
-        copy_columns = ", ".join(SUP_TABLE_COLUMNS)
-    elif file_type == "STFC":
-        copy_columns = ", ".join(STFC_TABLE_COLUMNS)
-    else:
-        logger.error(f"Unknown file type for COPY: {file_type}")
-        raise ValueError(f"Unknown file type for COPY: {file_type}")
-    try:
-        with conn.cursor() as cursor:
-            # Use COPY FROM for ultra-fast insertion
-            cursor.copy_expert(
-                f"""
-                COPY {schema}.{table_name} ({copy_columns})
-                FROM STDIN WITH CSV DELIMITER E'\\t' NULL '\\N'
-                """,
-                output,
-            )
-        conn.commit()
-
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Error in insertion: {e}")
+        logger.error(f"Error reading file CHUNK {file}: {e}")
         raise
 
 
 def _import_single_file(
     file: Path,
-    schema: str = IMPORT_SCHEMA,
-    truncate_table: bool = False,
 ) -> int:
     """
-    Import a single numbering file into the database.
+    Import a single numbering file into the staging table.
+
+    Automatically detects file type from filename, creates the appropriate
+    staging table if needed, and processes the file in memory-efficient chunks.
 
     Args:
-        file: Path to the file to import
-        schema: Target schema
-        truncate_table: Whether to truncate table before import
+        file: Path to the CSV/ZIP file to import
 
     Returns:
-        int: Number of rows imported
+        int: Total number of rows successfully imported
 
     Raises:
-        Exception: If import fails
+        ValueError: If file type cannot be determined
+        Exception: If database operations or file reading fails
     """
     start_time = time.time()
     total_rows = 0
 
-    logger.info(f"  Starting import of file {file}.")
+    logger.info(f"Starting import of file {file}.")
+
+    # Detect file type and get appropriate configuration
+    if file_config := _get_file_config(file):
+        file_type = file_config["file_type"]
+        table_name = file_config["table_name"]
+        logger.info(f"  File type detected for {file.name}: {file_type}")
+        logger.info(
+            f"  Target table for file {file.name}: {IMPORT_SCHEMA}.{table_name}"
+        )
+    else:
+        logger.warning(f"Unable to get file config for {file.name}. Skipping file.")
+        return 0
 
     try:
         with get_db_connection() as conn:
-            # Process file in chunks
+            # Process file in memory-efficient chunks to handle large files
             chunk_count = 0
-            file_type = None
-
-            for chunk_df, detected_file_type in _read_file_in_chunks(file):
+            for chunk in _read_file_in_chunks(file, file_config, chunk_size=CHUNK_SIZE):
                 chunk_count += 1
-                chunk_start = time.time()
-
-                # Store file type from first chunk
-                if file_type is None:
-                    file_type = detected_file_type
-
-                    # Create appropriate table
-                    if file_type == "CNG":
-                        _create_cng_table_if_not_exists(conn, TABLE_CNG, schema)
-                        table_name = TABLE_CNG
-                    elif file_type == "SUP":
-                        _create_sup_table_if_not_exists(conn, TABLE_SUP, schema)
-                        table_name = TABLE_SUP
-                    elif file_type in ("STFC", "SMP_SME"):
-                        _create_numeracao_table_if_not_exists(
-                            conn, TABLE_NUMERACAO, schema
-                        )
-                        table_name = TABLE_NUMERACAO
-                    else:
-                        logger.warning(f"Unknown file type for {file.name}. Skipping file.")
-                        return 0
-
-                    # Truncate table if requested (only on first chunk)
-                    if truncate_table and chunk_count == 1:
-                        with conn.cursor() as cursor:
-                            cursor.execute(f"TRUNCATE TABLE {schema}.{table_name}")
-                            conn.commit()
-                            logger.info(f"  Table {table_name} truncated")
-
-                # Insert chunk using COPY FROM
-                _bulk_insert_with_copy(conn, chunk_df, file_type, schema)
-
-                chunk_rows = len(chunk_df)
-                total_rows += chunk_rows
-                chunk_time = time.time() - chunk_start
-                chunk_time_str = f"{chunk_time:.2f}".replace(".", ",")
+                rows_in_chunk = len(chunk)
+                # Bulk insert using PostgreSQL COPY for maximum performance
+                # Get table name from file configuration
+                table_name = file_config["table_name"]
+                # Define column list for COPY command
+                copy_columns = ", ".join(file_config["table_columns"])
+                # Build copy query
+                copy_query = f"""
+                COPY {IMPORT_SCHEMA}.{table_name} ({copy_columns})
+                FROM STDIN WITH CSV DELIMITER E'\\t' NULL '\\N'
+                """
+                bulk_insert_with_copy(conn, chunk, copy_query)
+                total_rows += rows_in_chunk
                 logger.info(
-                    f"  Chunk {chunk_count:03d}: {chunk_rows:,} rows inserted in {chunk_time_str}s ({chunk_rows / chunk_time:,.0f} rows/s)".replace(
-                        ",", "."
-                    )
+                    f"    Inserted chunk {chunk_count} with {rows_in_chunk} rows."
                 )
 
         end_time = time.time()
@@ -541,7 +265,7 @@ def _import_single_file(
         insert_speed_str = f"{total_rows / total_time:,.0f}".replace(",", ".")
 
     except Exception as e:
-        logger.error(f"Error during import: {e}")
+        logger.error(f"Error during import of file {file.name}: {e}")
         raise
 
     else:
@@ -553,19 +277,23 @@ def _import_single_file(
 
 def _import_multiple_files(
     file_list: list[Path],
-    schema: str = IMPORT_SCHEMA,
-    truncate_table: bool = False,
 ) -> dict:
     """
-    Process multiple numbering files sequentially.
+    Process multiple numbering files sequentially with progress tracking.
+
+    Imports all files into their respective staging tables with detailed logging
+    and error handling. Each file is processed independently.
 
     Args:
-        file_list: List of files to process
-        schema: Target schema
-        truncate_table: Whether to truncate tables before first import
+        file_list: List of file paths to process
 
     Returns:
-        dict: Detailed processing statistics
+        dict: Processing statistics per file with keys:
+              - status: 'success' or 'error'
+              - tempo: Processing time in seconds
+              - linhas: Number of rows imported
+              - velocidade: Import speed (rows/second)
+              - erro: Error message (only present if status is 'error')
     """
     if not file_list or not isinstance(file_list, list):
         logger.warning("File list is empty or not a list.")
@@ -583,20 +311,10 @@ def _import_multiple_files(
         try:
             file_start = time.time()
 
-            # Only truncate on first import if requested
-            should_truncate = truncate_table and idx == 1
-
             # Import file
-            file_rows = _import_single_file(
-                file,
-                schema=schema,
-                truncate_table=should_truncate,
-            )
-
+            file_rows = _import_single_file(file)
             file_time = time.time() - file_start
-
             total_rows_all_files += file_rows
-
             results[file.name] = {
                 "status": "success",
                 "tempo": file_time,
@@ -616,23 +334,38 @@ def _import_multiple_files(
 
     total_time = time.time() - start_time_total
 
-    # Final report
-    sucessos = sum(1 for r in results.values() if r["status"] == "success")
-    erros = len(results) - sucessos
+    # Generate final import statistics report
+    successes = sum(1 for r in results.values() if r["status"] == "success")
+    errors = len(results) - successes
     total_rows_all_files_str = f"{total_rows_all_files:,}".replace(",", ".")
-    total_time_str = f"{total_time:.2f}".replace(".", ",")
+
+    # Format time for display (seconds, minutes, or hours)
+    if total_time < 60:
+        total_time_str = f"{total_time:.2f}s".replace(".", ",")
+    elif total_time < 3600:
+        minutes = int(total_time // 60)
+        seconds = total_time % 60
+        total_time_str = f"{minutes}m {seconds:.2f}s".replace(".", ",")
+    else:
+        hours = int(total_time // 3600)
+        minutes = int((total_time % 3600) // 60)
+        seconds = total_time % 60
+        total_time_str = f"{hours}h {minutes}m {seconds:.2f}s".replace(".", ",")
+
     avg_speed_str = f"{total_rows_all_files / total_time:,.0f}".replace(",", ".")
 
+    # Log comprehensive import summary
     logger.info("File import report")
-    logger.info("════════════════════════════════════")
+    logger.info("══════════════════")
     logger.info(f"📊 Files processed: {len(file_list)}")
-    logger.info(f"✅ Successes: {sucessos}")
-    logger.info(f"❌ Errors: {erros}")
+    logger.info(f"✅ Successes: {successes}")
+    logger.info(f"❌ Errors: {errors}")
     logger.info(f"📈 Total rows: {total_rows_all_files_str}")
-    logger.info(f"⏱️ Total time: {total_time_str}s")
+    logger.info(f"⏱️ Total time: {total_time_str}")
     logger.info(f"🚀 Average speed: {avg_speed_str} rows/s")
 
-    if erros > 0:
+    # List files that failed to import
+    if errors > 0:
         logger.info("Files with errors:")
         for file_name, stats in results.items():
             if stats["status"] == "error":
@@ -641,18 +374,39 @@ def _import_multiple_files(
     return results
 
 
-def load_nsapn_files(
-    input_path: str, schema: str = IMPORT_SCHEMA, truncate_table: bool = False
-) -> dict:
+def _create_tb_numeracao() -> None:
     """
-    Import Brazilian telecom numbering data plan from files or folders.
+    Create or recreate the final tb_numeracao table from staging data.
+
+    Drops the existing tb_numeracao table if it exists and recreates it
+    by consolidating data from all staging tables (STFC/SMP_SME, CNG, SUP).
+
+    Raises:
+        Exception: If table creation or data consolidation fails
+    """
+    with get_db_connection() as conn:
+        try:
+            logger.info(f"Updating {TARGET_SCHEMA}.{TB_NUMERACAO} table...")
+            conn.cursor().execute(CREATE_TB_NUMERACAO)
+            conn.commit()
+            logger.info(f"Table {TARGET_SCHEMA}.{TB_NUMERACAO} updated successfully")
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error updating {TARGET_SCHEMA}.{TB_NUMERACAO} table: {e}")
+            raise
+
+
+def load_nsapn_files(input_path: str, drop_table: bool = False) -> dict:
+    """
+    Import Brazilian telecom numbering plan data from files or folders.
 
     This function automatically detects the file type based on filename prefix
-    and imports the data to the appropriate table:
+    and imports the data to the appropriate import table:
 
-    - STFC files → abr_numeracao table (all columns)
-    - SMP/SME files → abr_numeracao table (subset of columns)
-    - CNG files → abr_cng table (CNG-specific columns)
+    - STFC files → entrada.abr_numeracao table (all columns)
+    - SMP/SME files → entrada.abr_numeracao table (subset of columns)
+    - CNG files → entrada.abr_cng table (CNG-specific columns)
+    - SUP files → entrada.abr_sup table (SUP-specific columns)
 
     File Type Detection:
     - Files starting with "STFC": Fixed telephony data
@@ -712,29 +466,40 @@ def load_nsapn_files(
     | instituicao         | Institution                    |
     | tipo                | Type                           |
     | status              | Status                         |
-    
+
     Args:
-        input_path: Path to the file or folder containing numbering files
-        schema: Database schema name (default: "entrada")
-        truncate_table: Whether to truncate tables before import
+        input_path: Path to a single file or folder containing numbering files (ZIP format).
+                   Files are processed recursively if a directory is provided.
+        drop_table: Whether to drop all staging tables after processing completes.
+                   Default is False to preserve staging data for inspection.
 
     Returns:
-        dict: Detailed processing statistics including success/error counts,
-              processing times, and row counts per file
+        dict: Processing statistics per file with keys:
+              - status: 'success' or 'error'
+              - tempo: Processing time in seconds
+              - linhas: Number of rows imported
+              - velocidade: Import speed (rows/second)
+              - erro: Error message (only if status is 'error')
 
     Raises:
         FileNotFoundError: If the input path does not exist
         Exception: For database connection or processing errors
 
+    Notes:
+        - All staging tables are automatically created and truncated before import
+        - After import, data is consolidated into the final tb_numeracao table
+        - Provider data is updated in tb_prestadoras table
+        - If drop_table=True, staging tables are removed after successful import
+
     Example:
         # Import single file
-        results = load_numbering_reports('/path/to/numbering_file.zip')
+        results = load_nsapn_files('/path/to/numbering_file.zip')
 
         # Import directory with mixed file types
-        results = load_numbering_reports('/path/to/numbering_files/')
+        results = load_nsapn_files('/path/to/numbering_files/')
 
-        # Import with table truncation
-        results = load_numbering_reports('/path/to/files/', truncate_table=True)
+        # Import and clean up staging tables
+        results = load_nsapn_files('/path/to/files/', drop_table=True)
     """
     input_path = Path(input_path)
 
@@ -754,13 +519,41 @@ def load_nsapn_files(
         logger.warning("No files found to import.")
         return {}
 
-    return _import_multiple_files(
-        files_to_import, schema=schema, truncate_table=truncate_table
-    )
+    # Prepare staging tables: create if not exists, then truncate for clean import
+    # Tables are processed in sequence to handle any potential dependencies
+    import_table_sequence = [
+        IMPORT_TABLE_CNG,
+        IMPORT_TABLE_SUP,
+        IMPORT_TABLE_STFC_SMP_SME,
+    ]
 
+    for table in import_table_sequence:
+        # Create table with appropriate schema for file type
+        execute_create_table(
+            IMPORT_SCHEMA,
+            table,
+            {
+                IMPORT_TABLE_STFC_SMP_SME: CREATE_IMPORT_TABLE_STFC_SMP_SME,
+                IMPORT_TABLE_CNG: CREATE_IMPORT_TABLE_CNG,
+                IMPORT_TABLE_SUP: CREATE_IMPORT_TABLE_SUP,
+            }[table],
+            logger,
+        )
+        # Clear any existing data to ensure clean import
+        execute_truncate_table(IMPORT_SCHEMA, table, logger)
 
-if __name__ == "__main__":
-    # Example usage for testing
+    # Import all files with progress tracking and error handling
+    results = _import_multiple_files(files_to_import)
 
-    input_path = "/data/cdr/arquivos_auxiliares/abr/numeracao/nsapn/"
-    results = load_nsapn_files(input_path, truncate_table=True)
+    # Consolidate staging data into final optimized table
+    _create_tb_numeracao()
+
+    # Update provider reference table with any new carriers
+    update_table_prestadoras()
+
+    # Optionally drop staging tables to free space (if requested)
+    if drop_table:
+        for table in import_table_sequence:
+            execute_drop_table(IMPORT_SCHEMA, table, logger)
+
+    return results

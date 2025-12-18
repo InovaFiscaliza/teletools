@@ -1,177 +1,284 @@
+> **[← Voltar para Teletools](../README.md)**
+
+<details>
+    <summary>Sumário</summary>
+    <ol>
+        <li><a href="#teletools-cdr-stage-database">Teletools CDR Stage Database</a></li>
+        <li><a href="#visão-geral">Visão Geral</a></li>
+        <li><a href="#pré-requisitos">Pré-requisitos</a></li>
+        <li><a href="#instalação-e-configuração">Instalação e Configuração</a></li>
+        <li><a href="#acesso-ao-banco-de-dados">Acesso ao Banco de Dados</a></li>
+        <li><a href="#configuração-do-banco-de-dados-cdr">Configuração do Banco de Dados CDR</a></li>
+        <li><a href="#contribuindo">Contribuindo</a></li>
+        <li><a href="#licença">Licença</a></li>
+        <li><a href="#contato-e-suporte">Contato e Suporte</a></li>
+        <li><a href="#-autores">👤 Autores</a></li>
+    </ol>
+</details>
+
 # Teletools CDR Stage Database
 
-Teletools CDR Stage Database é um conjunto de arquivos para a construção de uma solução conteinerizada para execução de um banco de dados PostgreSQL customizado para o pré-processamento de dados para tratamento de arquivos CDR (Detalhes de Registros de Chamadas) de operadoras brasileiras. 
+Teletools CDR Stage Database é um banco de dados PostgreSQL conteinerizado e customizado para pré-processamento e análise de dados de CDR (Call Detail Records - Detalhes de Registros de Chamadas) de operadoras de telecomunicações brasileiras.
 
-## Sobre
+## Visão Geral
 
-Teletools CDR Stage Database constroi uma imagem customizada de um banco de dados PostgreSQL a partir da [Imagem Oficial Docker do PostgreSQL](https://hub.docker.com/_/postgres) com as extensões requeridas para processamento dos dados extraídos de diversas fontes.
+Teletools CDR Stage Database fornece uma infraestrutura completa e otimizada para análise de dados de telecomunicações, construída sobre PostgreSQL com extensões especializadas. O ambiente é totalmente conteinerizado usando Docker, facilitando implantação e manutenção.
 
-Teletools database contém ainda uma versão web da ferramenta de adminstração para PostgreSQL [pgAdmin 4](https://hub.docker.com/r/dpage/pgadmin4).
+A solução é baseada na [Imagem Oficial Docker do PostgreSQL](https://hub.docker.com/_/postgres) e inclui [pgAdmin 4](https://hub.docker.com/r/dpage/pgadmin4) para administração web do banco de dados.
 
-## 🚀 Configuração
+### Características Principais
 
-### Pré-requisitos
+- ✅ **Ambiente Conteinerizado**: Deploy simplificado com Docker Compose
+- ✅ **Extensões Especializadas**: PostGIS, pg_stat_statements, fuzzystrmatch e outras
+- ✅ **Alta Performance**: Configurações otimizadas para processamento de grandes volumes
+- ✅ **Administração Web**: Interface pgAdmin 4 integrada
+- ✅ **Controle de Acesso**: Sistema de roles com permissões granulares
+- ✅ **Persistência de Dados**: Volumes configuráveis para dados e backups
 
-- docker: versão 28 ou superior
+## Pré-requisitos
 
-### Configuração do Ambiente
+- Docker versão 28 ou superior
+- Sistema operacional Linux (testado em RHEL9)
+- Permissões de administrador (sudo) para criação de usuários e diretórios
 
-Clone o repositório e construa a imagem customizada:
+## Instalação e Configuração
+
+### Clonagem do Repositório e Construção da Imagem Docker customizada
+
+**Clone o repositório e navegue até o diretório:**
 
 ```bash
-# Clonar o repositório
-$ git clone https://github.com/InovaFiscaliza/teletools
-$ cd teletools/tools/cdrstage
-
-# Construir a imagem customizada
-$ docker build -t postgrescdr .
+# Clone o repositório
+git clone https://github.com/InovaFiscaliza/teletools
+cd teletools/tools/cdrstage
 ```
 
-Crie os usuários para os serviços
+**Construa a imagem customizada do PostgreSQL:**
+
 ```bash
-# Criar o grupo postgres com GID 999
-$ sudo groupadd -g 999 postgres
-# Criar o usuário postgres com UID 999
-$ sudo useradd -u 999 postgres -g postgres
-
-# Criar o grupo pgadmin com GID 5050
-$ sudo groupadd -g 5050 pgadmin
-# Criar o usuário pgadmin com UID 999
-$ sudo useradd -u 5050 pgadmin -g pgadmin
+# Construir a imagem com as extensões necessárias
+docker build -t postgrescdr .
 ```
-⚠️ **Atenção** os usuários e grupos devem ser criados com os UID e GID especificados, caso contrário os serviços dos conteineres não persistirão os dados.
 
-Crie dos diretórios de dados e ajuste as permissões
+A construção da imagem instalará automaticamente todas as extensões PostgreSQL necessárias para processamento de dados CDR.
+
+### Criação de Usuários e Grupos do Sistema
+
+**Crie os usuários e grupos para os serviços:**
+
 ```bash
-# Criar os diretórios
-$ mkdir -p /data/postgresql/data
-$ mkdir -p /data/postgresql/pgadmin
+# Criar grupo e usuário postgres (UID/GID 999)
+sudo groupadd -g 999 postgres
+sudo useradd -u 999 postgres -g postgres
 
-# Configurar proprietário e permissões
-$ sudo chown -R postgres /data/postgresql/data
-$ sudo chown -R pgadmin /data/postgresql/pgadmin
-$ sudo chmod -R g+s /data/postgresql/data
-$ sudo chmod -R g+s /data/postgresql/pgadmin
+# Criar grupo e usuário pgadmin (UID/GID 5050)
+sudo groupadd -g 5050 pgadmin
+sudo useradd -u 5050 pgadmin -g pgadmin
 ```
-⚠️ **Atenção** caso queira utilitizar outros diretórios para armazenamento dos dados do PostgreSQL e pgAdmin, edite o arquivo `teletools/cdrstage/docker-compose.yaml` para apontar para os diretórios corretos.
+
+⚠️ **Importante**: Os valores de UID e GID devem ser exatamente como especificados. Caso contrário, os containers não conseguirão persistir dados corretamente.
+
+### Criação dos Diretórios de Dados
+
+**Crie os diretórios e configure permissões:**
+
+```bash
+# Criar diretórios para dados persistentes
+sudo mkdir -p /data/postgresql/data
+sudo mkdir -p /data/postgresql/pgadmin
+
+# Configurar proprietários
+sudo chown -R postgres:postgres /data/postgresql/data
+sudo chown -R pgadmin:pgadmin /data/postgresql/pgadmin
+
+# Configurar permissões com setgid
+sudo chmod -R g+s /data/postgresql/data
+sudo chmod -R g+s /data/postgresql/pgadmin
+```
+
+⚠️ **Personalização**: Se desejar usar diretórios diferentes, edite o arquivo `docker-compose.yaml` antes de prosseguir:
+
 ```yaml
-# Utilizar o diretório /opt/postgre para armazenar os dados
+# Exemplo: usando /opt/postgresql para armazenamento
 services:
   postgres:    
     volumes:
       - /opt/postgresql/data:/var/lib/postgresql/18/docker
-...
+  
   pgadmin:
     volumes:
       - /opt/postgresql/pgadmin:/var/lib/pgadmin
 ```
-Crie o arquivo de variáveis de ambiente (`.env`)
-```
-POSTGRES_USER=<postgres_admin_username>
-POSTGRES_PASSWORD=<postgres_admin_password>
-POSTGRES_DB=<postgres_default_database>
-PGADMIN_DEFAULT_EMAIL=<pgadmin_admin_user_email>
-PGADMIN_DEFAULT_PASSWORD=<pgadmin_admin_user_password>
+
+### Configuração das Variáveis de Ambiente
+
+**Crie o arquivo `.env` no diretório `tools/cdrstage`:**
+
+```bash
+# Arquivo: teletools/tools/cdrstage/.env
+
+# Configurações do PostgreSQL
+POSTGRES_USER=postgres_admin
+POSTGRES_PASSWORD=senha_super_segura
+POSTGRES_DB=cdr_database
+
+# Configurações do pgAdmin
+PGADMIN_DEFAULT_EMAIL=admin@empresa.com.br
+PGADMIN_DEFAULT_PASSWORD=senha_admin_pgadmin
 PGADMIN_LISTEN_ADDRESS=0.0.0.0
 ```
-| Variável                   | Descrição                                                       |
-| -------------------------- | --------------------------------------------------------------- |
-| `POSTGRES_USER`            | Cria o superusuário com o nome especificado                     |
-| `POSTGRES_PASSWORD`        | Define a senha do superusuário do PostgreSQL                    |
-| `POSTGRES_DB`              | Cria o banco de dados padrão com o nome especificado            |
-| `PGADMIN_DEFAULT_EMAIL`    | Cria a conta inicial de administrador com o e-mail especificado |
-| `PGADMIN_DEFAULT_PASSWORD` | Cria a senha inicial do administrador                           |
-| `PGADMIN_LISTEN_ADDRESS  ` | Especifica o endereço que o serviços ficará escutando           |
 
-Execute o docker compose
+**Descrição das variáveis:**
+
+| Variável                     | Descrição                                                    |
+|------------------------------|--------------------------------------------------------------|
+| `POSTGRES_USER`              | Nome do superusuário do PostgreSQL                           |
+| `POSTGRES_PASSWORD`          | Senha do superusuário do PostgreSQL                          |
+| `POSTGRES_DB`                | Nome do banco de dados padrão criado na inicialização        |
+| `PGADMIN_DEFAULT_EMAIL`      | E-mail para login inicial no pgAdmin                         |
+| `PGADMIN_DEFAULT_PASSWORD`   | Senha para login inicial no pgAdmin                          |
+| `PGADMIN_LISTEN_ADDRESS`     | Endereço de escuta do pgAdmin (0.0.0.0 = todas interfaces)  |
+
+### Inicialização dos Containers
+
+**Execute o Docker Compose:**
+
 ```bash
-# Executar docker compose
+# Iniciar os serviços em background
 docker compose up -d
 ```
-### Acesso ao PostgreSQL
 
-Após a configuração o banco de dados PostgreSQL pode ser acessado através do pgAdmin (web ou desktop) ou de outra ferramenta para gerenciamento de banco de dados.
+**Verifique o status dos containers:**
 
-Para acessar através do pgAdmin web acesse o endereço `http://<host_de_instalação>:<porta_pg_admin>` e utilize o e-mail e senha do pgAdmin informados no arquivo de configuração (`PGADMIN_DEFAULT_EMAIL` e `PGADMIN_DEFAULT_PASSWORD`)
-
-Configure a conexão ao servidor PostgreSQL com os seguintes parâmetros:
-
-| Parâmetro            | Valor                  |
-| -------------------- | -----------------------|
-| Host name/address    | `<host_de_instalação>` |
-| Port                 | `<porta_postgres>`     |
-| Maintenance database | `POSTGRES_DB`          |
-| Username             | `POSTGRES_USER`        |
-| Password             | `POSTGRES_PASSWORD`    |
-
-
-![pgAdmin Register - Server](../../images/postgre_connect.png "pgAdmin Register - Server")
-
-
-### Instalação das extensões
-
-Conecte no banco de dados e execute o SQL
-```sql
--- Instalar extensões
-CREATE EXTENSION amcheck;
-CREATE EXTENSION btree_gin;
-CREATE EXTENSION file_fdw;
-CREATE EXTENSION fuzzystrmatch;
-CREATE EXTENSION ogr_fdw;
-CREATE EXTENSION pg_stat_statements;
-CREATE EXTENSION pgstattuple;
-CREATE EXTENSION postgis;
-CREATE EXTENSION postgis_raster;
-CREATE EXTENSION system_stats;
-CREATE EXTENSION tablefunc;
-CREATE EXTENSION unaccent;
-```
-### Configuração dos parâmetros de performance
-
-Edite o arquivo de configuração do PostgreSQL 
 ```bash
+# Verificar containers em execução
+docker compose ps
+
+# Visualizar logs (opcional)
+docker compose logs -f
+```
+
+Os serviços estarão disponíveis nas seguintes portas:
+- **PostgreSQL**: 5432 (padrão)
+- **pgAdmin**: 8080 (ou conforme configurado no docker-compose.yaml)
+
+## Acesso ao Banco de Dados
+
+### Acesso via pgAdmin Web
+
+**Acesse o pgAdmin através do navegador:**
+
+```
+http://<host_de_instalação>:8080
+```
+
+**Credenciais de login:**
+- E-mail: valor definido em `PGADMIN_DEFAULT_EMAIL`
+- Senha: valor definido em `PGADMIN_DEFAULT_PASSWORD`
+
+### Configuração da Conexão PostgreSQL
+
+**Registre o servidor PostgreSQL no pgAdmin:**
+
+1. No menu principal, clique em **Add New Server**
+2. Na aba **General**:
+   - Name: `CDR Stage Database` (ou nome de sua preferência)
+
+3. Na aba **Connection**, configure:
+
+| Parâmetro              | Valor                                   |
+|------------------------|-----------------------------------------|
+| Host name/address      | `<host_de_instalação>` ou `localhost`   |
+| Port                   | `5432`                                  |
+| Maintenance database   | Valor de `POSTGRES_DB`                  |
+| Username               | Valor de `POSTGRES_USER`                |
+| Password               | Valor de `POSTGRES_PASSWORD`            |
+
+![pgAdmin Register - Server](https://raw.githubusercontent.com/InovaFiscaliza/teletools/0daa0d46077d5164df1f3c62e7061fb821bd4546/images/postgre_connect.png)
+
+**Teste a conexão** clicando em **Save**. Se as configurações estiverem corretas, o servidor aparecerá no painel lateral do pgAdmin.
+
+## Configuração do Banco de Dados CDR
+
+### Instalação das Extensões PostgreSQL
+
+
+**Conecte ao banco de dados e execute o seguinte SQL:**
+
+```sql
+-- Instalar extensões necessárias para processamento CDR
+CREATE EXTENSION IF NOT EXISTS amcheck;
+CREATE EXTENSION IF NOT EXISTS btree_gin;
+CREATE EXTENSION IF NOT EXISTS file_fdw;
+CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
+CREATE EXTENSION IF NOT EXISTS ogr_fdw;
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+CREATE EXTENSION IF NOT EXISTS pgstattuple;
+CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS postgis_raster;
+CREATE EXTENSION IF NOT EXISTS system_stats;
+CREATE EXTENSION IF NOT EXISTS tablefunc;
+CREATE EXTENSION IF NOT EXISTS unaccent;
+```
+
+**Descrição das extensões principais:**
+
+| Extensão                | Descrição                                              |
+|-------------------------|--------------------------------------------------------|
+| `postgis`               | Suporte a dados geoespaciais e operações GIS          |
+| `pg_stat_statements`    | Monitoramento de performance de consultas              |
+| `fuzzystrmatch`         | Funções de matching aproximado de strings              |
+| `unaccent`              | Remove acentuação de texto                             |
+| `file_fdw`              | Acesso a arquivos externos como tabelas                |
+
+### Otimização de Parâmetros de Performance
+
+**Edite o arquivo de configuração do PostgreSQL:**
+
+```bash
+# Conectar ao container como usuário postgres
 sudo su - postgres
-cd /data/postresql/data
+cd /data/postgresql/data
+
+# Criar backup da configuração
 cp postgresql.conf postgresql.conf.bkp.$(date +%Y%m%d_%H%M%S)
+
+# Editar configuração
 nano postgresql.conf
 ```
-Verifique os parâmetros listados e os ajuste, se necessário.
 
-|Parâmetro                      |Descrição                                                                                         |Valor padrão|Valor ajustado|
-|-------------------------------|--------------------------------------------------------------------------------------------------|------------|--------------|
-|autovacuum                     |Starts the autovacuum subprocess.                                                                 |on          |on            |
-|autovacuum_vacuum_cost_limit   |Vacuum cost amount available before napping, for                                                  |-1          |2000          |
-|autovacuum_max_workers         |Sets the maximum number of simultaneously running autovacuum worker processes.                    |3           |6             |
-|autovacuum_vacuum_scale_factor |Number of tuple updates or deletes prior to vacuum as a fraction of reltuples.                    |0.2         |0.2           |
-|checkpoint_timeout             |Sets the maximum time between automatic WAL checkpoints.                                          |300         |1800s         |
-|deadlock_timeout               |Sets the time to wait on a lock before checking for deadlock.                                     |1000        |2s            |
-|default_statistics_target      |Sets the default statistics target.                                                               |100         |1000          |
-|effective_cache_size           |Sets the planner's assumption about the total size of the data caches.                            |524288      |6GB           |
-|effective_io_concurrency       |Number of simultaneous requests that can be handled efficiently by the disk subsystem.            |16          |200           |
-|geqo_threshold                 |Sets the threshold of FROM items beyond which GEQO is used.                                       |12          |16            |
-|huge_pages                     |Use of huge pages on Linux or Windows.                                                            |try         |try           |
-|jit                            |Allow JIT compilation.                                                                            |on          |off           |
-|listen_addresses               |Sets the host name or IP address(es) to listen to.                                                |*           |*             |
-|log_min_duration_statement     |Sets the minimum execution time above which all statements will be logged.                        |-1          |10000         |
-|maintenance_work_mem           |Sets the maximum memory to be used for maintenance operations.                                    |65536       |4GB           |
-|max_connections                |Sets the maximum number of concurrent connections.                                                |100         |100           |
-|max_locks_per_transaction      |Sets the maximum number of locks per transaction.                                                 |64          |256           |
-|max_parallel_workers           |Sets the maximum number of parallel workers that can be active at one time.                       |8           |16            |
-|max_parallel_workers_per_gather|Sets the maximum number of parallel processes per executor node.                                  |2           |8             |
-|max_wal_size                   |Sets the WAL size that triggers a checkpoint.                                                     |1024        |64GB          |
-|min_wal_size                   |Sets the minimum size to shrink the WAL to.                                                       |80          |2GB           |
-|parallel_setup_cost            |Sets the planner's estimate of the cost of starting up worker processes for parallel query.       |1000        |200.0         |
-|parallel_tuple_cost            |Sets the planner's estimate of the cost of passing each tuple (row) from worker to leader backend.|0.1         |0.1           |
-|random_page_cost               |Sets the planner's estimate of the cost of a nonsequentially fetched disk page.                   |4           |1.1           |
-|shared_buffers                 |Sets the number of shared memory buffers used by the server.                                      |2097152     |20GB          |
-|synchronous_commit             |Sets the current transaction's synchronization level.                                             |on          |local         |
-|temp_buffers                   |Sets the maximum number of temporary buffers used by each session.                                |1024        |4096          |
-|wal_level                      |Sets the level of information written to the WAL.                                                 |replica     |logical       |
-|work_mem                       |Sets the maximum memory to be used for query workspaces.                                          |4096        |2GB           |
+**Parâmetros recomendados para processamento CDR:**
 
-### Configuração do banco de dado CDR
+| Parâmetro                       | Valor Padrão | Valor Recomendado | Descrição                                                  |
+|---------------------------------|--------------|-------------------|------------------------------------------------------------|
+| `shared_buffers`                | 2GB          | 20GB              | Memória compartilhada para cache de dados                  |
+| `effective_cache_size`          | 4GB          | 6GB               | Estimativa do cache total disponível                       |
+| `maintenance_work_mem`          | 64MB         | 4GB               | Memória para operações de manutenção                       |
+| `work_mem`                      | 4MB          | 2GB               | Memória para operações de ordenação                        |
+| `max_wal_size`                  | 1GB          | 64GB              | Tamanho máximo do WAL antes de checkpoint                  |
+| `min_wal_size`                  | 80MB         | 2GB               | Tamanho mínimo do WAL                                      |
+| `checkpoint_timeout`            | 300s         | 1800s             | Tempo máximo entre checkpoints automáticos                 |
+| `max_connections`               | 100          | 100               | Número máximo de conexões simultâneas                      |
+| `max_parallel_workers`          | 8            | 16                | Máximo de workers paralelos ativos                         |
+| `max_parallel_workers_per_gather`| 2           | 8                 | Workers paralelos por executor                             |
+| `effective_io_concurrency`      | 16           | 200               | Requisições simultâneas ao subsistema de disco             |
+| `random_page_cost`              | 4.0          | 1.1               | Custo de página não sequencial (SSD)                       |
+| `default_statistics_target`     | 100          | 1000              | Precisão das estatísticas do planner                       |
+| `autovacuum_vacuum_cost_limit`  | -1           | 2000              | Limite de custo do autovacuum                              |
+| `autovacuum_max_workers`        | 3            | 6                 | Workers paralelos do autovacuum                            |
+| `wal_level`                     | replica      | logical           | Nível de informação no WAL                                 |
+| `synchronous_commit`            | on           | local             | Nível de sincronização de commits                          |
 
-#### Criação/atualização dos esquemas, roles e grante
+⚠️ **Nota**: Ajuste os valores de acordo com os recursos disponíveis no seu servidor. Os valores acima são adequados para servidores com 32GB+ de RAM e armazenamento SSD.
+
+**Reinicie o PostgreSQL após as alterações:**
+
+```bash
+# Dentro do container
+docker compose restart postgres
+```
+
+### Criação de Esquemas, Roles e Permissões
 ```sql
 -- =======================================
 -- Script idempotente para criação/atualização de roles e grants
@@ -503,7 +610,23 @@ BEGIN
     EXECUTE format('GRANT cdr_user_ler TO %I', user_name);
 END $$;
 ```
+## Contribuindo
 
+Para contribuir com melhorias neste módulo:
+1. Fork o repositório `teletools`
+2. Crie um branch para sua feature
+3. Implemente testes para novas funcionalidades
+4. Submeta um pull request
+
+## Licença
+
+Este módulo é parte do projeto `teletools` e segue a mesma licença do projeto principal.
+
+## Contato e Suporte
+
+Para questões, bugs ou sugestões:
+- Abra uma issue no repositório do projeto
+- Consulte a documentação adicional em `/docs`
 
 ---
 
@@ -517,8 +640,3 @@ END $$;
 
 **Carlos Cesar Lanzoni**
 - Email: carlos.cesar@anatel.gov.br
----
-
-**Versão:** 0.1.0
-**Última atualização:** 2025-10-31
-**Status:** Em desenvolvimento ativo
