@@ -1,52 +1,23 @@
+> **[← Voltar para Teletools](../README.md)**
+
+<details>
+    <summary>Sumário</summary>
+    <ol>
+        <li><a href="#teletools-abr-loader">Teletools ABR Loader</a></li>
+        <li><a href="#visão-geral">Visão Geral</a></li>
+        <li><a href="#instalação-e-configuração">Instalação e Configuração</a></li>
+        <li><a href="#comandos-disponíveis">Comandos Disponíveis</a></li>
+        <li><a href="#importação-de-dados-de-portabilidade-pip">Importação de Dados de Portabilidade (PIP)</a></li>
+        <li><a href="#importação-do-plano-de-numeração">Importação do Plano de Numeração</a></li>
+        <li><a href="#contribuindo">Contribuindo</a></li>
+        <li><a href="#licença">Licença</a></li>
+        <li><a href="#contato-e-suporte">Contato e Suporte</a></li>
+    </ol>
+</details>
+
 # Teletools ABR Loader
 
-> **[← Voltar para o README principal](../README.md)** | [Database API](database.md) | [CDR Stage Database](cdr_stage.md)
-
 Teletools ABR Loader é um cliente de linha de comando para importação de dados de telecomunicações brasileiras da ABR Telecom (Associação Brasileira de Recursos em Telecomunicações).
-
-## Índice
-
-- [Teletools ABR Loader](#teletools-abr-loader)
-  - [Índice](#índice)
-  - [Visão Geral](#visão-geral)
-    - [Características Principais](#características-principais)
-  - [Instalação e Configuração](#instalação-e-configuração)
-    - [Pré-requisitos](#pré-requisitos)
-    - [Instalação do Teletools](#instalação-do-teletools)
-    - [Configuração para acesso ao banco de dados Teletools CDR Stage Database](#configuração-para-acesso-ao-banco-de-dados-teletools-cdr-stage-database)
-      - [Opção 1: Arquivo de Configuração do Usuário (Recomendado)](#opção-1-arquivo-de-configuração-do-usuário-recomendado)
-      - [Opção 2: Variáveis de Ambiente do Sistema](#opção-2-variáveis-de-ambiente-do-sistema)
-      - [Testar a Conexão](#testar-a-conexão)
-  - [Comandos Disponíveis](#comandos-disponíveis)
-    - [`load-pip` - Importação de Dados de Portabilidade](#load-pip---importação-de-dados-de-portabilidade)
-    - [`load-nsapn` - Importação do Plano de Numeração](#load-nsapn---importação-do-plano-de-numeração)
-    - [`test-connection` - Teste de Conectividade](#test-connection---teste-de-conectividade)
-  - [Importação de Dados de Portabilidade (PIP)](#importação-de-dados-de-portabilidade-pip)
-    - [Extração dos Arquivos](#extração-dos-arquivos)
-    - [Extração dos arquivos para importação no PIP](#extração-dos-arquivos-para-importação-no-pip)
-    - [Uso Básico](#uso-básico)
-    - [Importar um único arquivo](#importar-um-único-arquivo)
-    - [Importar todos os arquivos de um diretório](#importar-todos-os-arquivos-de-um-diretório)
-    - [Processo de Importação](#processo-de-importação)
-      - [Dicas de Performance](#dicas-de-performance)
-    - [Limitações Conhecidas](#limitações-conhecidas)
-  - [Importação do Plano de Numeração](#importação-do-plano-de-numeração)
-    - [Descrição](#descrição)
-    - [Fontes de Dados Oficiais](#fontes-de-dados-oficiais)
-    - [Formato dos Arquivos](#formato-dos-arquivos)
-      - [CNG](#cng)
-      - [SME](#sme)
-      - [SMP](#smp)
-      - [STFC](#stfc)
-    - [Uso Básico](#uso-básico-1)
-    - [Importar um único arquivo](#importar-um-único-arquivo-1)
-    - [Importar todos os arquivos de um diretório](#importar-todos-os-arquivos-de-um-diretório-1)
-    - [Importar e manter tabelas temporárias](#importar-e-manter-tabelas-temporárias)
-    - [Processo de Importação](#processo-de-importação-1)
-    - [Limitações Conhecidas](#limitações-conhecidas-1)
-  - [Contribuindo](#contribuindo)
-  - [Licença](#licença)
-  - [Contato e Suporte](#contato-e-suporte)
 
 ## Visão Geral
 

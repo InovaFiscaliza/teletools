@@ -15,8 +15,8 @@
 
 # <img align="left" src="https://raw.githubusercontent.com/InovaFiscaliza/teletools/0daa0d46077d5164df1f3c62e7061fb821bd4546/images/teletools_logo_53_40.png"> Teletools
 
-<p>
-Teletools é um conjunto de bibliotecas e ferramentas de apoio para pré-processamento e análise de arquivos CDR (Detalhes de Registros de Chamadas) de operadoras brasileiras.</p>
+
+Teletools é um conjunto de bibliotecas e ferramentas de apoio para pré-processamento e análise de arquivos CDR (Detalhes de Registros de Chamadas) de operadoras brasileiras.
 
 
 ## Bibliotecas e ferramentas
@@ -26,7 +26,7 @@ Teletools é um conjunto de bibliotecas e ferramentas de apoio para pré-process
 | Biblioteca    | Descrição                                                               |
 | ------------- | ----------------------------------------------------------------------- |
 | cipher        | Biblioteca para criptografar e descriptografar arquivos no formato .gpg |
-| [database](docs/database.md)      | Biblioteca para conexão e operações a banco de dados auxiliares de CDR. |
+| [database](docs/database_api_index.md)      | Biblioteca para conexão e operações a banco de dados auxiliares de CDR. |
 | preprocessing | Biblioteca para limpeza e preparação de dados                           |
 | utils         | Biblioteca com ferramentas diversas e comuns                            |
 
@@ -34,14 +34,14 @@ Teletools é um conjunto de bibliotecas e ferramentas de apoio para pré-process
 
 | Ferramenta    | Descrição                                                                                |
 | ------------- | ---------------------------------------------------------------------------------------- |
-| cipher_cli    | Cliente de linha de comando para criptografar e descriptografar arquivos no formato .gpg |
-| [abr_loader](docs/abr_loader.md)    | Cliente de linha de comando para importação de dados da ABR Telecom (portabilidade e numeração) |
+| [Cipher](docs/cipher_cli.md)    | Cliente de linha de comando para criptografar e descriptografar arquivos no formato .gpg |
+| [ABR Loader](docs/abr_loader.md)    | Cliente de linha de comando para importação de dados da ABR Telecom (portabilidade e numeração) |
 
 ### Infraestrutura
 
-| Aplicação     | Descrição                                                                                                     | Documentação |
-| ------------- | ------------------------------------------------------------------------------------------------------------- | ------------ |
-| [cdrstage](docs/cdr_stage.md)      | Banco de dados PostgreSQL conteinerizado e customizado para pré-processamento e análise de CDR |
+| Aplicação     | Descrição |
+| ------------- | --------- | 
+| [CDR Stage Database](docs/cdr_stage.md) | Banco de dados PostgreSQL conteinerizado e customizado para pré-processamento e análise de CDR |
 
 
 ## Instalação

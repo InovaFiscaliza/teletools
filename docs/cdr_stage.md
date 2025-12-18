@@ -1,34 +1,24 @@
+> **[← Voltar para Teletools](../README.md)**
+
+<details>
+    <summary>Sumário</summary>
+    <ol>
+        <li><a href="#teletools-cdr-stage-database">Teletools CDR Stage Database</a></li>
+        <li><a href="#visão-geral">Visão Geral</a></li>
+        <li><a href="#pré-requisitos">Pré-requisitos</a></li>
+        <li><a href="#instalação-e-configuração">Instalação e Configuração</a></li>
+        <li><a href="#acesso-ao-banco-de-dados">Acesso ao Banco de Dados</a></li>
+        <li><a href="#configuração-do-banco-de-dados-cdr">Configuração do Banco de Dados CDR</a></li>
+        <li><a href="#contribuindo">Contribuindo</a></li>
+        <li><a href="#licença">Licença</a></li>
+        <li><a href="#contato-e-suporte">Contato e Suporte</a></li>
+        <li><a href="#-autores">👤 Autores</a></li>
+    </ol>
+</details>
+
 # Teletools CDR Stage Database
 
-> **[← Voltar para o README principal](../README.md)** | [ABR Loader](abr_loader.md) | [Database API](database.md)
-
 Teletools CDR Stage Database é um banco de dados PostgreSQL conteinerizado e customizado para pré-processamento e análise de dados de CDR (Call Detail Records - Detalhes de Registros de Chamadas) de operadoras de telecomunicações brasileiras.
-
-## Índice
-
-- [Teletools CDR Stage Database](#teletools-cdr-stage-database)
-  - [Índice](#índice)
-  - [Visão Geral](#visão-geral)
-    - [Características Principais](#características-principais)
-  - [Pré-requisitos](#pré-requisitos)
-  - [Instalação e Configuração](#instalação-e-configuração)
-    - [Clonagem do Repositório e Construção da Imagem Docker customizada](#clonagem-do-repositório-e-construção-da-imagem-docker-customizada)
-    - [Criação de Usuários e Grupos do Sistema](#criação-de-usuários-e-grupos-do-sistema)
-    - [Criação dos Diretórios de Dados](#criação-dos-diretórios-de-dados)
-    - [Configuração das Variáveis de Ambiente](#configuração-das-variáveis-de-ambiente)
-    - [Inicialização dos Containers](#inicialização-dos-containers)
-  - [Acesso ao Banco de Dados](#acesso-ao-banco-de-dados)
-    - [Acesso via pgAdmin Web](#acesso-via-pgadmin-web)
-    - [Configuração da Conexão PostgreSQL](#configuração-da-conexão-postgresql)
-  - [Configuração do Banco de Dados CDR](#configuração-do-banco-de-dados-cdr)
-    - [Instalação das Extensões PostgreSQL](#instalação-das-extensões-postgresql)
-    - [Otimização de Parâmetros de Performance](#otimização-de-parâmetros-de-performance)
-    - [Criação de Esquemas, Roles e Permissões](#criação-de-esquemas-roles-e-permissões)
-      - [Criação dos usuários](#criação-dos-usuários)
-  - [Contribuindo](#contribuindo)
-  - [Licença](#licença)
-  - [Contato e Suporte](#contato-e-suporte)
-  - [👤 Autores](#-autores)
 
 ## Visão Geral
 

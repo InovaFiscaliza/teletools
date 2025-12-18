@@ -1,59 +1,29 @@
+> **[← Voltar para Teletools](../README.md)**
+
+<details>
+    <summary>Sumário</summary>
+    <ol>
+        <li><a href="#teletools-cipher">Teletools Cipher</a></li>
+        <li><a href="#visão-geral">Visão Geral</a></li>
+        <li><a href="#instalação-e-configuração">Instalação e Configuração</a></li>
+        <li><a href="#geração-de-chaves">Geração de Chaves</a></li>
+        <li><a href="#comandos-disponíveis">Comandos Disponíveis</a></li>
+        <li><a href="#criptografia-de-arquivos">Criptografia de Arquivos</a></li>
+        <li><a href="#descriptografia-de-arquivos">Descriptografia de Arquivos</a></li>
+        <li><a href="#casos-de-uso">Casos de Uso</a></li>
+        <li><a href="#segurança-e-boas-práticas">Segurança e Boas Práticas</a></li>
+        <li><a href="#limitações-conhecidas">Limitações Conhecidas</a></li>
+        <li><a href="#solução-de-problemas">Solução de Problemas</a></li>
+        <li><a href="#contribuindo">Contribuindo</a></li>
+        <li><a href="#licença">Licença</a></li>
+        <li><a href="#contato-e-suporte">Contato e Suporte</a></li>
+    </ol>
+</details>
+
 # Teletools Cipher
 
-> **[← Voltar para o README principal](../README.md)** | [Database API](database.md) | [ABR Loader](abr_loader.md) | [CDR Stage Database](cdr_stage.md)
 
 Teletools Cipher é um cliente de linha de comando para criptografia e descriptografia de arquivos usando criptografia GPG (GNU Privacy Guard) com chaves públicas/privadas.
-
-## Índice
-
-- [Teletools Cipher](#teletools-cipher)
-  - [Índice](#índice)
-  - [Visão Geral](#visão-geral)
-    - [Características Principais](#características-principais)
-  - [Instalação e Configuração](#instalação-e-configuração)
-    - [Pré-requisitos](#pré-requisitos)
-    - [Instalação do Teletools](#instalação-do-teletools)
-    - [Instalação do GnuPG](#instalação-do-gnupg)
-      - [Linux (Ubuntu/Debian)](#linux-ubuntudebian)
-      - [Linux (RHEL/CentOS/Fedora)](#linux-rhelcentosfedora)
-      - [Windows](#windows)
-      - [Verificação da Instalação](#verificação-da-instalação)
-  - [Geração de Chaves](#geração-de-chaves)
-    - [Gerar Par de Chaves GPG](#gerar-par-de-chaves-gpg)
-    - [Exportar Chave Pública](#exportar-chave-pública)
-    - [Exportar Chave Privada](#exportar-chave-privada)
-  - [Comandos Disponíveis](#comandos-disponíveis)
-    - [`encrypt` - Criptografia de Arquivos](#encrypt---criptografia-de-arquivos)
-    - [`decrypt` - Descriptografia de Arquivos](#decrypt---descriptografia-de-arquivos)
-  - [Criptografia de Arquivos](#criptografia-de-arquivos)
-    - [Uso Básico](#uso-básico)
-    - [Criptografar um único arquivo](#criptografar-um-único-arquivo)
-    - [Criptografar todos os arquivos de um diretório](#criptografar-todos-os-arquivos-de-um-diretório)
-    - [Criptografar no mesmo local do arquivo original](#criptografar-no-mesmo-local-do-arquivo-original)
-    - [Processo de Criptografia](#processo-de-criptografia)
-      - [Formato dos Arquivos Criptografados](#formato-dos-arquivos-criptografados)
-  - [Descriptografia de Arquivos](#descriptografia-de-arquivos)
-    - [Uso Básico](#uso-básico-1)
-    - [Descriptografar um único arquivo](#descriptografar-um-único-arquivo)
-    - [Descriptografar todos os arquivos de um diretório](#descriptografar-todos-os-arquivos-de-um-diretório)
-    - [Descriptografar no mesmo local do arquivo original](#descriptografar-no-mesmo-local-do-arquivo-original)
-    - [Processo de Descriptografia](#processo-de-descriptografia)
-  - [Casos de Uso](#casos-de-uso)
-    - [Proteção de Dados Sensíveis](#proteção-de-dados-sensíveis)
-    - [Transferência Segura de Arquivos](#transferência-segura-de-arquivos)
-    - [Backup Criptografado](#backup-criptografado)
-  - [Segurança e Boas Práticas](#segurança-e-boas-práticas)
-    - [Proteção de Chaves Privadas](#proteção-de-chaves-privadas)
-    - [Distribuição de Chaves Públicas](#distribuição-de-chaves-públicas)
-    - [Gestão de Chaves](#gestão-de-chaves)
-  - [Limitações Conhecidas](#limitações-conhecidas)
-  - [Solução de Problemas](#solução-de-problemas)
-    - [Erro: "Public key file not found"](#erro-public-key-file-not-found)
-    - [Erro: "Error reading public key file"](#erro-error-reading-public-key-file)
-    - [Erro: "Missing required dependency"](#erro-missing-required-dependency)
-  - [Contribuindo](#contribuindo)
-  - [Licença](#licença)
-  - [Contato e Suporte](#contato-e-suporte)
 
 ## Visão Geral
 
