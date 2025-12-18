@@ -25,10 +25,10 @@ Teletools é um conjunto de bibliotecas e ferramentas de apoio para pré-process
 
 | Biblioteca    | Descrição                                                               |
 | ------------- | ----------------------------------------------------------------------- |
-| cipher        | Biblioteca para criptografar e descriptografar arquivos no formato .gpg |
+| [cipher](docs/cipher_api_index.md)        | Biblioteca para criptografar e descriptografar arquivos no formato .gpg |
 | [database](docs/database_api_index.md)      | Biblioteca para conexão e operações a banco de dados auxiliares de CDR. |
-| preprocessing | Biblioteca para limpeza e preparação de dados                           |
-| utils         | Biblioteca com ferramentas diversas e comuns                            |
+| [preprocessing](docs/preprocessing_api_index.md) | Biblioteca para limpeza e preparação de dados                           |
+| [utils](docs/utils_api_index.md)         | Biblioteca com ferramentas diversas e comuns                            |
 
 ### Ferramentas de Linha de Comando
 
