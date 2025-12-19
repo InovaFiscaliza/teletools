@@ -76,4 +76,4 @@ $ source ~/teletools/bin/activate
 
 ## Documentação Completa
 
-- **[Teletools]([docs/cdr_stage.md](https://github.com/InovaFiscaliza/teletools/blob/main/README.md))** - Banco de dados PostgreSQL conteinerizado para análise de CDR
+- **[Teletools](https://github.com/InovaFiscaliza/teletools/blob/main/README.md)**
