@@ -1,6 +1,6 @@
 [project]
 name = "teletools"
-version = "0.1.0"
+version = "1.0.0"
 description = "Python Utility Functions Library for Call Details Records ( CDRs ) from Brazilian Telecommunications Carriers"
 readme = "README.pypi.md"
 authors = [
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.urls]
-homepage = "https://github.com/InovaFiscaliza/teletools"
+homepage = "https://deepwiki.com/InovaFiscaliza/teletools"
 documentation = "https://github.com/InovaFiscaliza/teletools/blob/main/README.md"
 repository = "https://github.com/InovaFiscaliza/teletools"
 
