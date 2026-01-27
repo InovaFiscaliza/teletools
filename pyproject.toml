@@ -1,12 +1,12 @@
 [project]
 name = "teletools"
-version = "1.0.0"
+version = "1.0.1"
 description = "Python Utility Functions Library for Call Details Records ( CDRs ) from Brazilian Telecommunications Carriers"
 readme = "README.pypi.md"
 authors = [
     { name = "Maxwel de Souza Freitas", email = "maxwel@maxwelfreitas.com.br" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
     "duckdb>=1.4.0",
     "pandas>=2.3.2",
