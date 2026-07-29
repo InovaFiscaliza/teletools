@@ -1,9 +1,9 @@
 # <img align="left" src="https://raw.githubusercontent.com/InovaFiscaliza/teletools/0daa0d46077d5164df1f3c62e7061fb821bd4546/images/teletools_logo_53_40.png"> Teletools
 
 ![Status](https://img.shields.io/badge/status-descontinuado%20%2F%20arquivado-red)
-![Sucessor](https://img.shields.io/badge/sucessor-teleutils-blue)
+[![Sucessor](https://img.shields.io/badge/sucessor-teleutils-blue)](https://github.com/InovaFiscaliza/teleutils)
 
-> **Projeto oficialmente descontinuado e arquivado.** O `teletools` foi um protótipo/prova de conceito e **não receberá mais atualizações, correções de bugs ou novas funcionalidades**. A solução foi substituída por uma reescrita completa no pacote **`teleutils`**. A documentação abaixo registra o estado final congelado do protótipo e é mantida estritamente para **estudo, consulta técnica, auditoria e aprendizado**.
+> **Projeto oficialmente descontinuado e arquivado.** O `teletools` foi um protótipo/prova de conceito e **não receberá mais atualizações, correções de bugs ou novas funcionalidades**. A solução foi substituída por uma reescrita completa no pacote [**`teleutils`**](https://github.com/InovaFiscaliza/teleutils). A documentação abaixo registra o estado final congelado do protótipo e é mantida estritamente para **estudo, consulta técnica, auditoria e aprendizado**.
 
 ## Sumário
 
@@ -64,7 +64,7 @@ Resumo do status:
 - Repositório descontinuado e arquivado.
 - Sem manutenção ativa.
 - Sem compromisso de compatibilidade futura.
-- Sucessor oficial: `teleutils`.
+- Sucessor oficial: [`teleutils`](https://github.com/InovaFiscaliza/teleutils).
 
 ## Visao Geral
 
